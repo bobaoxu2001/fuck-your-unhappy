@@ -7,11 +7,6 @@ export interface MonsterData {
   keywords: string[];
 }
 
-export interface ArenaStats {
-  hitCount: number;
-  maxHits: number;
-}
-
 export interface ReleaseSummaryData {
   monsterName: string;
   hitCount: number;

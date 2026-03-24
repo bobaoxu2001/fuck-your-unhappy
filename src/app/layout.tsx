@@ -1,9 +1,16 @@
 import type { Metadata, Viewport } from "next";
 import { Geist } from "next/font/google";
+import { Bangers } from "next/font/google";
 import "./globals.css";
 
 const geist = Geist({
   variable: "--font-geist",
+  subsets: ["latin"],
+});
+
+const bangers = Bangers({
+  variable: "--font-bangers",
+  weight: "400",
   subsets: ["latin"],
 });
 
@@ -24,8 +31,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={geist.variable}>
-      <body className="bg-amber-50 font-sans">
+    <html lang="en" className={`${geist.variable} ${bangers.variable}`}>
+      <body className="font-sans">
         {children}
       </body>
     </html>
