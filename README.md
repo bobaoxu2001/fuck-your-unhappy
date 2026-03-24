@@ -1,36 +1,66 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Fuck Your Unhappy
 
-## Getting Started
+A stress-relief micro app that turns your daily frustrations into cartoon monsters you can smash to pieces.
 
-First, run the development server:
+## Problem
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+Everyone has bad days — a terrible boss, a missed deadline, an anxiety spiral. But there's no quick, fun way to process that frustration in 30 seconds on your phone.
+
+## Solution
+
+**Fuck Your Unhappy** gives you a chaotic, cartoonish arena to vent. Type what's bothering you, watch it become a ridiculous monster, then tap it into oblivion. It's dumb, it's loud, and it works.
+
+## Demo Flow
+
+```
+Input → Reveal → Arena → Summary
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+1. **Vent Input** — Type who or what ruined your day
+2. **Character Reveal** — A stress monster is generated based on your input, complete with a name, backstory, and weakness
+3. **Vent Arena** — Tap the monster to smash it. Build combos, watch the stress bar fill, and trigger comic-style hit effects
+4. **Release Summary** — See your stats: damage dealt, stress reduced, and a personalized roast line. Then start over or share your victory
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Core Features (MVP)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- Keyword-matched monster generation from a curated roster
+- Re-roll to get a different monster
+- Tap-to-smash arena with hit counter, combo streaks, and floating comic stickers
+- Stress bar with gradient fill and critical-stress alerts
+- Animated summary screen with stat cards
+- Full restart loop — smash as many bosses as you want
 
-## Learn More
+## Tech Stack
 
-To learn more about Next.js, take a look at the following resources:
+| Layer | Tech |
+|-------|------|
+| Framework | Next.js 16 (App Router) |
+| Language | TypeScript |
+| Styling | Tailwind CSS 4 |
+| Animation | Framer Motion |
+| Runtime | React 19 |
+| Design | Stitch (reference) |
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Run Locally
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+git clone https://github.com/your-username/fuck-your-unhappy.git
+cd fuck-your-unhappy
+npm install
+npm run dev
+```
 
-## Deploy on Vercel
+Open [http://localhost:3000](http://localhost:3000) on your phone or in a mobile-sized browser window.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Future Improvements
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- **AI-generated monsters** — Use an LLM to create unique names, descriptions, and weaknesses from user input
+- **AI-generated visuals** — Generate custom monster artwork per session
+- **Share your victory** — Export summary as an image for social media
+- **Sound effects** — Comic-style hit sounds and victory fanfare
+- **Monster gallery** — Save and revisit past defeated monsters
+- **Multiplayer mode** — Co-smash monsters with friends in real time
+
+## License
+
+MIT

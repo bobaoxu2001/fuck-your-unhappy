@@ -11,8 +11,8 @@ interface VentArenaProps {
 
 const COMIC_WORDS = ["BOOM", "POW", "SLAP", "TAKE THAT", "WHAM", "CRACK", "BAM", "OOF"];
 const COMBO_WORDS = ["NICE!", "COMBO!", "UNSTOPPABLE!", "BEAST MODE!", "GODLIKE!"];
-const COMBO_TIMEOUT = 800;
-
+const COMBO_TIMEOUT_MS = 800;
+const FLOAT_DURATION_MS = 700;
 const STICKER_COLORS = ["#EF4444", "#FFD600", "#7C3AED", "#FF1493", "#06B6D4"];
 
 interface FloatingText {
@@ -23,52 +23,49 @@ interface FloatingText {
   color: string;
 }
 
+function pickRandom<T>(arr: readonly T[]): T {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
 export default function VentArena({ monster, onFinish }: VentArenaProps) {
   const [hits, setHits] = useState(0);
   const [combo, setCombo] = useState(0);
-  const [bestCombo, setBestCombo] = useState(0);
-  const bestComboRef = useRef(0);
   const [floats, setFloats] = useState<FloatingText[]>([]);
   const [squash, setSquash] = useState(false);
-  const comboTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const floatId = useRef(0);
+
+  const bestComboRef = useRef(0);
+  const comboTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const floatIdRef = useRef(0);
 
   const stressLevel = Math.min(100, Math.round(hits * 4.5));
 
   const spawnFloat = useCallback((isCombo: boolean) => {
-    const text = isCombo
-      ? COMBO_WORDS[Math.floor(Math.random() * COMBO_WORDS.length)]
-      : COMIC_WORDS[Math.floor(Math.random() * COMIC_WORDS.length)];
-    const x = -40 + Math.random() * 80;
-    const y = -20 + Math.random() * 40;
-    const color = isCombo
-      ? "#FFD600"
-      : STICKER_COLORS[Math.floor(Math.random() * STICKER_COLORS.length)];
-    const id = ++floatId.current;
+    const id = ++floatIdRef.current;
+    const text = pickRandom(isCombo ? COMBO_WORDS : COMIC_WORDS);
+    const color = isCombo ? "#FFD600" : pickRandom(STICKER_COLORS);
 
-    setFloats((prev) => [...prev.slice(-5), { id, text, x, y, color }]);
-    setTimeout(() => {
-      setFloats((prev) => prev.filter((f) => f.id !== id));
-    }, 700);
+    setFloats((prev) => [
+      ...prev.slice(-5),
+      { id, text, x: -40 + Math.random() * 80, y: -20 + Math.random() * 40, color },
+    ]);
+    setTimeout(() => setFloats((prev) => prev.filter((f) => f.id !== id)), FLOAT_DURATION_MS);
   }, []);
 
   const handleTap = () => {
     setHits((h) => h + 1);
-
     setSquash(true);
     setTimeout(() => setSquash(false), 150);
 
-    if (comboTimer.current) clearTimeout(comboTimer.current);
+    if (comboTimerRef.current) clearTimeout(comboTimerRef.current);
+
     setCombo((c) => {
       const next = c + 1;
-      if (next > bestComboRef.current) {
-        bestComboRef.current = next;
-        setBestCombo(next);
-      }
+      if (next > bestComboRef.current) bestComboRef.current = next;
       spawnFloat(next > 1 && next % 3 === 0);
       return next;
     });
-    comboTimer.current = setTimeout(() => setCombo(0), COMBO_TIMEOUT);
+
+    comboTimerRef.current = setTimeout(() => setCombo(0), COMBO_TIMEOUT_MS);
   };
 
   return (
@@ -128,7 +125,6 @@ export default function VentArena({ monster, onFinish }: VentArenaProps) {
 
       {/* Monster Tap Area */}
       <div className="relative flex items-center justify-center w-full h-56">
-        {/* Floating comic text */}
         <AnimatePresence>
           {floats.map((f) => (
             <motion.div
@@ -153,7 +149,6 @@ export default function VentArena({ monster, onFinish }: VentArenaProps) {
           ))}
         </AnimatePresence>
 
-        {/* Monster */}
         <motion.button
           onClick={handleTap}
           animate={
@@ -167,7 +162,6 @@ export default function VentArena({ monster, onFinish }: VentArenaProps) {
           {monster.emoji}
         </motion.button>
 
-        {/* Emotional Damage overlay */}
         {hits > 0 && hits % 5 === 0 && (
           <motion.div
             initial={{ scale: 0, opacity: 0 }}
@@ -196,7 +190,7 @@ export default function VentArena({ monster, onFinish }: VentArenaProps) {
       {/* Finish Button */}
       <motion.button
         whileTap={{ scale: 0.95 }}
-        onClick={() => onFinish(hits, bestCombo)}
+        onClick={() => onFinish(hits, bestComboRef.current)}
         className="w-full py-3.5 rounded-2xl bg-brand-yellow text-black text-lg font-black uppercase tracking-wide shadow-md border-2 border-black/5 mt-1"
       >
         {hits === 0 ? "Skip" : "I'm Done 😌"}

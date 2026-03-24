@@ -7,8 +7,20 @@ interface VentInputProps {
   onSubmit: (text: string) => void;
 }
 
-/* Comic stickers scattered around the monster preview card */
-const STICKERS = [
+const INITIAL_STRESS = 10;
+
+interface Sticker {
+  text: string;
+  bg: string;
+  color?: string;
+  rotate: string;
+  top?: string;
+  bottom?: string;
+  left?: string;
+  right?: string;
+}
+
+const STICKERS: Sticker[] = [
   { text: "BOOM!", bg: "#EF4444", rotate: "-6deg", top: "6%", left: "-2%" },
   { text: "TOSS", bg: "#FFD600", color: "#000", rotate: "4deg", top: "2%", right: "8%" },
   { text: "HIT", bg: "#7C3AED", rotate: "-3deg", top: "40%", right: "-4%" },
@@ -18,12 +30,10 @@ const STICKERS = [
 
 export default function VentInput({ onSubmit }: VentInputProps) {
   const [text, setText] = useState("");
-  const [stressPreview] = useState(10);
 
   const handleSubmit = () => {
-    if (text.trim()) {
-      onSubmit(text.trim());
-    }
+    const trimmed = text.trim();
+    if (trimmed) onSubmit(trimmed);
   };
 
   return (
@@ -38,15 +48,12 @@ export default function VentInput({ onSubmit }: VentInputProps) {
           <span className="text-[11px] font-bold uppercase tracking-widest text-gray-500">
             Stress Level
           </span>
-          <div className="flex items-baseline gap-1">
-            <span className="text-[11px] text-gray-400 font-semibold">00%</span>
-            <span className="text-base font-black text-brand-purple">{stressPreview}%</span>
-          </div>
+          <span className="text-base font-black text-brand-purple">{INITIAL_STRESS}%</span>
         </div>
         <div className="w-full h-2 rounded-full bg-gray-200 overflow-hidden">
           <motion.div
             initial={{ width: 0 }}
-            animate={{ width: `${stressPreview}%` }}
+            animate={{ width: `${INITIAL_STRESS}%` }}
             transition={{ duration: 0.8, ease: "easeOut" }}
             className="h-full rounded-full stress-bar-gradient"
           />
@@ -55,7 +62,6 @@ export default function VentInput({ onSubmit }: VentInputProps) {
 
       {/* Monster Preview Card with Stickers */}
       <div className="relative w-full">
-        {/* Scattered comic stickers */}
         {STICKERS.map((s) => (
           <motion.div
             key={s.text}
@@ -77,7 +83,6 @@ export default function VentInput({ onSubmit }: VentInputProps) {
           </motion.div>
         ))}
 
-        {/* Card */}
         <div className="w-full rounded-2xl bg-white shadow-lg border border-gray-100 p-3 flex flex-col items-center">
           <div className="w-full h-40 rounded-xl bg-gradient-to-br from-yellow-50 to-amber-50 flex items-center justify-center overflow-hidden">
             <motion.span
@@ -96,16 +101,14 @@ export default function VentInput({ onSubmit }: VentInputProps) {
         <label className="text-xs font-bold uppercase tracking-wider text-gray-600">
           Who ruined your day?
         </label>
-        <div className="relative">
-          <input
-            type="text"
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            placeholder="Manager, ex-friend, printer..."
-            maxLength={200}
-            className="w-full px-5 py-2.5 rounded-full border border-gray-200 bg-gray-50 text-sm font-medium placeholder:text-gray-400 focus:outline-none focus:border-brand-purple focus:bg-white transition-colors"
-          />
-        </div>
+        <input
+          type="text"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder="Manager, ex-friend, printer..."
+          maxLength={200}
+          className="w-full px-5 py-2.5 rounded-full border border-gray-200 bg-gray-50 text-sm font-medium placeholder:text-gray-400 focus:outline-none focus:border-brand-purple focus:bg-white transition-colors"
+        />
       </div>
 
       {/* Generate Button */}

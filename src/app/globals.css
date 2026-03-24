@@ -10,7 +10,6 @@
   --color-brand-yellow: #FFD600;
   --color-brand-yellow-light: #FFF9C4;
   --color-brand-pink: #FF1493;
-  --color-brand-magenta: #E91E9E;
   --color-brand-red: #EF4444;
   --color-brand-green: #22C55E;
   --color-brand-cyan: #06B6D4;
@@ -50,7 +49,7 @@ body {
   box-shadow: 0 -4px 24px rgba(0,0,0,0.10);
 }
 
-/* Generate button gradient (green/lime like Stitch) */
+/* Generate / primary button gradient */
 .generate-btn {
   background: linear-gradient(135deg, #A3E635 0%, #BEF264 50%, #D9F99D 100%);
   border: 2px solid rgba(0,0,0,0.05);
@@ -60,23 +59,4 @@ body {
 .yellow-highlight {
   background: linear-gradient(180deg, transparent 50%, var(--color-brand-yellow) 50%);
   padding: 0 4px;
-}
-
-/* Pulsing glow for active elements */
-@keyframes pulse-glow {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(124, 58, 237, 0.4); }
-  50% { box-shadow: 0 0 20px 4px rgba(124, 58, 237, 0.2); }
-}
-.pulse-glow {
-  animation: pulse-glow 2s ease-in-out infinite;
-}
-
-/* Shake animation for damage */
-@keyframes shake {
-  0%, 100% { transform: translateX(0); }
-  25% { transform: translateX(-4px) rotate(-1deg); }
-  75% { transform: translateX(4px) rotate(1deg); }
-}
-.shake {
-  animation: shake 0.3s ease-in-out;
 }

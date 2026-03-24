@@ -8,28 +8,36 @@ interface ReleaseSummaryProps {
   onRestart: () => void;
 }
 
-const statCard = (
-  label: string,
-  value: string,
-  color: string,
-  bgColor: string,
-  delay: number
-) => (
-  <motion.div
-    initial={{ opacity: 0, y: 20 }}
-    animate={{ opacity: 1, y: 0 }}
-    transition={{ delay, duration: 0.4 }}
-    className="rounded-2xl p-4 flex flex-col items-center gap-1 shadow-md"
-    style={{ backgroundColor: bgColor }}
-  >
-    <span className="text-3xl font-black" style={{ color }}>
-      {value}
-    </span>
-    <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">
-      {label}
-    </span>
-  </motion.div>
-);
+function StatCard({
+  label,
+  value,
+  color,
+  bgColor,
+  delay,
+}: {
+  label: string;
+  value: string;
+  color: string;
+  bgColor: string;
+  delay: number;
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay, duration: 0.4 }}
+      className="rounded-2xl p-4 flex flex-col items-center gap-1 shadow-md"
+      style={{ backgroundColor: bgColor }}
+    >
+      <span className="text-3xl font-black" style={{ color }}>
+        {value}
+      </span>
+      <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">
+        {label}
+      </span>
+    </motion.div>
+  );
+}
 
 export default function ReleaseSummary({ data, onRestart }: ReleaseSummaryProps) {
   return (
@@ -80,9 +88,7 @@ export default function ReleaseSummary({ data, onRestart }: ReleaseSummaryProps)
         className="w-full rounded-2xl bg-brand-purple-deep text-white p-5 shadow-lg"
       >
         <p className="text-sm font-semibold opacity-80 mb-1">SITUATION CRITICAL: AVERTED!</p>
-        <p className="text-sm leading-relaxed opacity-90">
-          {data.roastLine}
-        </p>
+        <p className="text-sm leading-relaxed opacity-90">{data.roastLine}</p>
         <div className="mt-3 text-center">
           <p className="font-display text-3xl tracking-wider text-brand-yellow leading-tight">
             STRESS REDUCED BY {data.stressReduced}%!
@@ -90,25 +96,25 @@ export default function ReleaseSummary({ data, onRestart }: ReleaseSummaryProps)
         </div>
       </motion.div>
 
-      {/* Stat Cards Grid — 2 cards like Stitch */}
+      {/* Stat Cards */}
       <div className="w-full grid grid-cols-2 gap-3">
-        {statCard(
-          "Damage Dealt",
-          `+${data.hitCount * 28}%`,
-          "#22C55E",
-          "#F0FDF4",
-          0.5
-        )}
-        {statCard(
-          "Stress Left",
-          "ZERO",
-          "#7C3AED",
-          "#FAF5FF",
-          0.6
-        )}
+        <StatCard
+          label="Damage Dealt"
+          value={`+${data.hitCount * 28}%`}
+          color="#22C55E"
+          bgColor="#F0FDF4"
+          delay={0.5}
+        />
+        <StatCard
+          label="Stress Left"
+          value="ZERO"
+          color="#7C3AED"
+          bgColor="#FAF5FF"
+          delay={0.6}
+        />
       </div>
 
-      {/* Buttons — pill-shaped, matching Stitch order */}
+      {/* Buttons */}
       <div className="w-full flex flex-col gap-2.5 mt-1">
         <motion.button
           whileTap={{ scale: 0.95 }}

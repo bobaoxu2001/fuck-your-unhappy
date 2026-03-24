@@ -14,7 +14,6 @@ export interface ReleaseSummaryData {
   stressReduced: number;
   headline: string;
   roastLine: string;
-  emoji: string;
 }
 
 export type Screen = "input" | "reveal" | "arena" | "summary";
