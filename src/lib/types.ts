@@ -14,6 +14,8 @@ export interface ReleaseSummaryData {
   stressReduced: number;
   headline: string;
   roastLine: string;
+  sceneId?: string;
+  toolId?: string;
 }
 
 export type Screen = "input" | "reveal" | "arena" | "summary";

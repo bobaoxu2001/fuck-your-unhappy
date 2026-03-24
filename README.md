@@ -2,6 +2,12 @@
 
 A stress-relief micro app that turns your daily frustrations into cartoon monsters you can smash to pieces.
 
+## Live Demo
+
+Try it now: [fuck-your-unhappy.vercel.app](https://fuck-your-unhappy.vercel.app)
+
+Type what's stressing you out, watch it become a monster, and tap it into oblivion — takes 30 seconds.
+
 ## Problem
 
 Everyone has bad days — a terrible boss, a missed deadline, an anxiety spiral. But there's no quick, fun way to process that frustration in 30 seconds on your phone.
@@ -44,7 +50,7 @@ Input → Reveal → Arena → Summary
 ## Run Locally
 
 ```bash
-git clone https://github.com/your-username/fuck-your-unhappy.git
+git clone https://github.com/bobaoxu2001/fuck-your-unhappy.git
 cd fuck-your-unhappy
 npm install
 npm run dev

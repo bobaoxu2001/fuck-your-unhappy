@@ -30,9 +30,12 @@ export default function Home() {
     if (monster) setMonster(rerollMonster(userInput, monster));
   };
 
-  const handleFinish = (hitCount: number, bestCombo: number) => {
+  const handleFinish = (hitCount: number, bestCombo: number, sceneId?: string, toolId?: string) => {
     if (monster) {
-      setSummary(buildSummary(monster, hitCount, bestCombo));
+      const data = buildSummary(monster, hitCount, bestCombo);
+      data.sceneId = sceneId;
+      data.toolId = toolId;
+      setSummary(data);
       setScreen("summary");
     }
   };
