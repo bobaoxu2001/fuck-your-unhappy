@@ -9,26 +9,32 @@ import CharacterReveal from "@/components/CharacterReveal";
 import VentArena from "@/components/VentArena";
 import ReleaseSummary from "@/components/ReleaseSummary";
 
-function buildSummary(monster: MonsterData, hitCount: number): ReleaseSummaryData {
+function buildSummary(monster: MonsterData, hitCount: number, bestCombo: number): ReleaseSummaryData {
   const roasts = [
     `${monster.name} didn't stand a chance against your rage.`,
     `That was personal. ${monster.name} is filing a restraining order.`,
     `You hit so hard, ${monster.name}'s therapist needs a therapist.`,
     `${monster.name} has left the chat. Permanently.`,
+    `${monster.name} just ragequit existence.`,
   ];
 
-  let stressLevel: string;
-  if (hitCount >= 18) stressLevel = "You were UNHINGED 🔥";
-  else if (hitCount >= 12) stressLevel = "Solid rage session 💪";
-  else if (hitCount >= 6) stressLevel = "Light therapy 😌";
-  else stressLevel = "Just a love tap 🤏";
+  const headlines = [
+    "TARGET DESTROYED",
+    "EMOTIONAL VICTORY",
+    "BOSS ELIMINATED",
+    "RAGE COMPLETE",
+  ];
+
+  const stressReduced = Math.min(100, Math.round(40 + hitCount * 3 + bestCombo * 5));
 
   return {
     monsterName: monster.name,
     hitCount,
-    stressLevel,
+    bestCombo,
+    stressReduced,
+    headline: headlines[Math.floor(Math.random() * headlines.length)],
     roastLine: roasts[Math.floor(Math.random() * roasts.length)],
-    emoji: "🏆",
+    emoji: hitCount >= 15 ? "👑" : "🏆",
   };
 }
 
@@ -52,9 +58,9 @@ export default function Home() {
 
   const handleReady = () => setScreen("arena");
 
-  const handleFinish = (hitCount: number) => {
+  const handleFinish = (hitCount: number, bestCombo: number) => {
     if (monster) {
-      setSummary(buildSummary(monster, hitCount));
+      setSummary(buildSummary(monster, hitCount, bestCombo));
       setScreen("summary");
     }
   };

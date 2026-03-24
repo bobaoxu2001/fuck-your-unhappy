@@ -6,7 +6,7 @@ import { MonsterData } from "@/lib/types";
 
 interface VentArenaProps {
   monster: MonsterData;
-  onFinish: (hitCount: number) => void;
+  onFinish: (hitCount: number, bestCombo: number) => void;
 }
 
 const COMIC_WORDS = ["BOOM", "POW", "SLAP", "TAKE THAT", "WHAM", "CRACK", "BAM", "OOF"];
@@ -127,7 +127,7 @@ export default function VentArena({ monster, onFinish }: VentArenaProps) {
       {/* Finish button */}
       <motion.button
         whileTap={{ scale: 0.95 }}
-        onClick={() => onFinish(hits)}
+        onClick={() => onFinish(hits, bestCombo)}
         className="w-full py-3.5 rounded-2xl bg-green-500 text-white text-lg font-bold shadow-md"
       >
         {hits === 0 ? "Skip" : "I'm Done 😌"}

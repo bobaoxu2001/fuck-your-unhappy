@@ -15,7 +15,9 @@ export interface ArenaStats {
 export interface ReleaseSummaryData {
   monsterName: string;
   hitCount: number;
-  stressLevel: string;
+  bestCombo: number;
+  stressReduced: number;
+  headline: string;
   roastLine: string;
   emoji: string;
 }
