@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 
 interface VentInputProps {
   onSubmit: (text: string) => void;
+  loading?: boolean;
 }
 
 const INITIAL_STRESS = 10;
@@ -28,7 +29,7 @@ const STICKERS: Sticker[] = [
   { text: "TAKE THAT!", bg: "#FFD600", color: "#000", rotate: "-4deg", bottom: "14%", right: "-4%" },
 ];
 
-export default function VentInput({ onSubmit }: VentInputProps) {
+export default function VentInput({ onSubmit, loading }: VentInputProps) {
   const [text, setText] = useState("");
 
   const handleSubmit = () => {
@@ -115,10 +116,10 @@ export default function VentInput({ onSubmit }: VentInputProps) {
       <motion.button
         whileTap={{ scale: 0.96 }}
         onClick={handleSubmit}
-        disabled={!text.trim()}
+        disabled={!text.trim() || loading}
         className="w-full py-3.5 rounded-full generate-btn text-black text-lg font-black uppercase tracking-wide shadow-[0_4px_0_0_rgba(0,0,0,0.10)] disabled:opacity-40 transition-all"
       >
-        Generate Monster
+        {loading ? "Summoning Monster…" : "Generate Monster"}
       </motion.button>
     </motion.div>
   );

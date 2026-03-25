@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Screen, MonsterData, ReleaseSummaryData } from "@/lib/types";
-import { generateMonster, rerollMonster } from "@/lib/mockMonsters";
+import { generateMonsterAI, rerollMonsterAI } from "@/lib/generateMonster";
 import { buildSummary } from "@/lib/buildSummary";
 import AppHeader from "@/components/AppHeader";
 import BottomNav from "@/components/BottomNav";
@@ -19,15 +19,23 @@ export default function Home() {
   const [userInput, setUserInput] = useState("");
   const [monster, setMonster] = useState<MonsterData | null>(null);
   const [summary, setSummary] = useState<ReleaseSummaryData | null>(null);
+  const [generating, setGenerating] = useState(false);
 
-  const handleVent = (text: string) => {
+  const handleVent = async (text: string) => {
     setUserInput(text);
-    setMonster(generateMonster(text));
+    setGenerating(true);
+    const m = await generateMonsterAI(text);
+    setMonster(m);
+    setGenerating(false);
     setScreen("reveal");
   };
 
-  const handleReroll = () => {
-    if (monster) setMonster(rerollMonster(userInput, monster));
+  const handleReroll = async () => {
+    if (!monster) return;
+    setGenerating(true);
+    const m = await rerollMonsterAI(userInput, monster);
+    setMonster(m);
+    setGenerating(false);
   };
 
   const handleFinish = (hitCount: number, bestCombo: number, sceneId?: string, toolId?: string) => {
@@ -56,7 +64,7 @@ export default function Home() {
         <AnimatePresence mode="wait">
           {screen === "input" && (
             <motion.div key="input" exit={EXIT_ANIMATION} className="w-full">
-              <VentInput onSubmit={handleVent} />
+              <VentInput onSubmit={handleVent} loading={generating} />
             </motion.div>
           )}
           {screen === "reveal" && monster && (
@@ -65,6 +73,7 @@ export default function Home() {
                 monster={monster}
                 onReady={() => setScreen("arena")}
                 onReroll={handleReroll}
+                loading={generating}
               />
             </motion.div>
           )}

@@ -1,0 +1,53 @@
+import Anthropic from "@anthropic-ai/sdk";
+import { NextRequest, NextResponse } from "next/server";
+
+const client = new Anthropic();
+
+const SYSTEM_PROMPT = `You are a monster generator for a stress-relief app called "Fuck Your Unhappy".
+The user types what frustrated them, and you create an exaggerated cartoon villain based on it.
+
+RULES:
+- Tone: comedic, cartoonish, absurd. Never realistic or dark.
+- Name: 2-3 words, ideally alliterative or punny. E.g. "Karen the Complainer", "Deadline Doug"
+- Description: 1-2 funny sentences about their origin or habits. Max 25 words.
+- Weakness: 3-6 words, ironic or absurd. E.g. "Being ignored", "Actual planning"
+- Taunts: exactly 3 short first-person lines the monster taunts the user with. Max 8 words each. Punchy and ridiculous.
+- Emoji: pick ONE from this exact list that best fits the vibe: 👹 👺 👻 💀 🤡 😈 🧌 🧟 👾 🦹 🐲 🦊 🐸 🤖 🫠 🌚
+- Color: pick ONE hex from this list: #FF6B6B #FFA94D #9775FA #FF8787 #66D9E8 #E599F7 #FFC078 #74C0FC
+
+Respond with ONLY valid JSON. No markdown, no explanation, no code block:
+{"name":"...","emoji":"...","description":"...","weakness":"...","color":"...","taunts":["...","...","..."]}`;
+
+export async function POST(req: NextRequest) {
+  try {
+    const { input, excludeName } = await req.json();
+
+    if (!input || typeof input !== "string" || input.trim().length === 0) {
+      return NextResponse.json({ error: "Missing input" }, { status: 400 });
+    }
+
+    const userPrompt = excludeName
+      ? `User's frustration: "${input.trim()}"\n\nImportant: do NOT generate a monster named "${excludeName}". Pick a different angle.`
+      : `User's frustration: "${input.trim()}"`;
+
+    const message = await client.messages.create({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 300,
+      system: SYSTEM_PROMPT,
+      messages: [{ role: "user", content: userPrompt }],
+    });
+
+    const raw = message.content[0].type === "text" ? message.content[0].text : "";
+    const monster = JSON.parse(raw.trim());
+
+    // Ensure required fields are present
+    if (!monster.name || !monster.emoji || !monster.description) {
+      throw new Error("Incomplete monster data from AI");
+    }
+
+    return NextResponse.json({ ...monster, keywords: [] });
+  } catch (err) {
+    console.error("Monster generation failed:", err);
+    return NextResponse.json({ error: "Generation failed" }, { status: 500 });
+  }
+}

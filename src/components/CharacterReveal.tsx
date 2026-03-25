@@ -7,12 +7,14 @@ interface CharacterRevealProps {
   monster: MonsterData;
   onReady: () => void;
   onReroll: () => void;
+  loading?: boolean;
 }
 
 export default function CharacterReveal({
   monster,
   onReady,
   onReroll,
+  loading,
 }: CharacterRevealProps) {
   return (
     <motion.div
@@ -84,9 +86,10 @@ export default function CharacterReveal({
       <motion.button
         whileTap={{ scale: 0.95 }}
         onClick={onReroll}
-        className="w-full py-3 rounded-2xl border-2 border-gray-200 text-gray-500 text-sm font-bold uppercase tracking-wide bg-white"
+        disabled={loading}
+        className="w-full py-3 rounded-2xl border-2 border-gray-200 text-gray-500 text-sm font-bold uppercase tracking-wide bg-white disabled:opacity-40 transition-all"
       >
-        🎲 Re-roll Monster
+        {loading ? "🎲 Rolling…" : "🎲 Re-roll Monster"}
       </motion.button>
     </motion.div>
   );

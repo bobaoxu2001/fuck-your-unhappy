@@ -5,6 +5,7 @@ export interface MonsterData {
   weakness: string;
   color: string;
   keywords: string[];
+  taunts?: string[];
 }
 
 export interface ReleaseSummaryData {
