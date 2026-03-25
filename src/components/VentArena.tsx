@@ -5,6 +5,8 @@ import { AnimatePresence, motion } from "framer-motion";
 import { MonsterData } from "@/lib/types";
 import { SCENES, SceneConfig, getScene } from "@/lib/scenes";
 import { TOOLS, ToolConfig, getTool } from "@/lib/tools";
+import { useTTS } from "@/hooks/useTTS";
+import { VoiceToggle } from "@/components/VoiceToggle";
 
 interface VentArenaProps {
   monster: MonsterData;
@@ -171,6 +173,10 @@ export default function VentArena({ monster, onFinish }: VentArenaProps) {
   const rageTimerRef       = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isRagingRef        = useRef(false);   // sync ref for use inside callbacks
   const reactionIdxRef     = useRef(0);       // cycles through monster reactions
+  const monsterHPRef       = useRef(HP_MAX);  // tracks current HP for TTS mode selection
+
+  // ── TTS ──────────────────────────────────────────────────────────────────────
+  const { speak, stop, isSupported: ttsSupported, voiceEnabled, setVoiceEnabled } = useTTS();
 
   const scene: SceneConfig = getScene(sceneId);
   const tool: ToolConfig   = getTool(toolId);
@@ -181,6 +187,7 @@ export default function VentArena({ monster, onFinish }: VentArenaProps) {
   // ─── Defeat detection ────────────────────────────────────────────────────────
   useEffect(() => {
     if (monsterHP <= 0 && victoryPhase === 0) {
+      stop(); // silence any mid-sentence reaction
       // Phase 1: KO moment
       setVictoryPhase(1);
       setKoText(pickRandom(KO_TEXTS));
@@ -190,7 +197,7 @@ export default function VentArena({ monster, onFinish }: VentArenaProps) {
         setVictoryMsg(pickRandom(VICTORY_MESSAGES)(monster.name));
       }, 900);
     }
-  }, [monsterHP, victoryPhase, monster.name]);
+  }, [monsterHP, victoryPhase, monster.name, stop]);
 
   // ─── Spawn helpers ────────────────────────────────────────────────────────────
   const spawnParticle = useCallback((scn: SceneConfig) => {
@@ -288,7 +295,13 @@ export default function VentArena({ monster, onFinish }: VentArenaProps) {
         const pool = monster.reactions?.length ? monster.reactions : FALLBACK_REACTIONS;
         const reaction = pool[reactionIdxRef.current % pool.length];
         reactionIdxRef.current += 1;
-        setTimeout(() => spawnFloat(reaction, "#1F2937", false, true), 180);
+        // Visual bubble + TTS fire together after a short sync delay
+        setTimeout(() => {
+          spawnFloat(reaction, "#1F2937", false, true);
+          // angry mode when enemy is near death (< 30% HP)
+          const mode = (monsterHPRef.current / HP_MAX) < 0.3 ? "angry" : "sarcastic";
+          speak(reaction, mode);
+        }, 180);
       }
 
       // Cycle taunts
@@ -303,10 +316,14 @@ export default function VentArena({ monster, onFinish }: VentArenaProps) {
         });
       }
 
-      // Reduce HP
-      setMonsterHP((hp) => Math.max(0, hp - damage));
+      // Reduce HP — keep ref in sync for TTS mode detection in callbacks
+      setMonsterHP((hp) => {
+        const next = Math.max(0, hp - damage);
+        monsterHPRef.current = next;
+        return next;
+      });
     },
-    [isOver, sceneId, taunts.length, monster.reactions, spawnFloat, spawnParticle, activateRage],
+    [isOver, sceneId, taunts.length, monster.reactions, spawnFloat, spawnParticle, activateRage, speak],
   );
 
   const handleTap = useCallback(() => {
@@ -370,10 +387,16 @@ export default function VentArena({ monster, onFinish }: VentArenaProps) {
           <span className="text-xs font-black uppercase tracking-widest text-gray-500">
             Monster HP
           </span>
-          <span className="text-base font-black tabular-nums" style={{ color: hpColor }}>
-            {monsterHP}
-            <span className="text-[10px] text-gray-400 font-bold ml-0.5">/ {HP_MAX}</span>
-          </span>
+          <div className="flex items-center gap-2">
+            {/* Voice toggle — only rendered when browser supports TTS */}
+            {ttsSupported && (
+              <VoiceToggle enabled={voiceEnabled} onToggle={setVoiceEnabled} />
+            )}
+            <span className="text-base font-black tabular-nums" style={{ color: hpColor }}>
+              {monsterHP}
+              <span className="text-[10px] text-gray-400 font-bold ml-0.5">/ {HP_MAX}</span>
+            </span>
+          </div>
         </div>
         <div className="w-full h-2.5 rounded-full bg-gray-200 overflow-hidden">
           <motion.div
