@@ -52,7 +52,7 @@ export default function Home() {
       <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-brand-pink via-brand-yellow to-brand-pink z-50" />
       <AppHeader />
 
-      <main className="flex-1 flex items-start justify-center px-2 pt-2 pb-24 overflow-y-auto">
+      <main className="flex-1 flex items-start justify-center px-2 pt-2 pb-28 overflow-y-auto">
         <AnimatePresence mode="wait">
           {screen === "input" && (
             <motion.div key="input" exit={EXIT_ANIMATION} className="w-full">

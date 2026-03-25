@@ -132,7 +132,7 @@ export default function VentArena({ monster, onFinish }: VentArenaProps) {
   }, [flavorHit, scene]);
 
   return (
-    <div className="flex flex-col items-center gap-2.5 w-full max-w-sm mx-auto px-3">
+    <div className="flex flex-col items-center gap-1.5 min-[380px]:gap-2.5 w-full max-w-sm mx-auto px-3">
       {/* ===== SCENE TABS ===== */}
       <div className="w-full flex items-center gap-1.5 bg-white/80 rounded-2xl p-1 shadow-sm border border-gray-100">
         {SCENES.map((s) => (
@@ -151,8 +151,8 @@ export default function VentArena({ monster, onFinish }: VentArenaProps) {
         ))}
       </div>
 
-      {/* Stress Level Bar */}
-      <div className="w-full flex flex-col gap-1.5">
+      {/* Stress Level + Stats — combined compact row on small screens */}
+      <div className="w-full flex flex-col gap-1">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="text-xs font-black uppercase tracking-widest text-gray-500">
@@ -166,7 +166,7 @@ export default function VentArena({ monster, onFinish }: VentArenaProps) {
           </div>
           <span className="text-lg font-black text-brand-purple">{stressLevel}%</span>
         </div>
-        <div className="w-full h-2.5 rounded-full bg-gray-200 overflow-hidden">
+        <div className="w-full h-2 rounded-full bg-gray-200 overflow-hidden">
           <motion.div
             animate={{ width: `${stressLevel}%` }}
             transition={{ duration: 0.3 }}
@@ -177,15 +177,15 @@ export default function VentArena({ monster, onFinish }: VentArenaProps) {
 
       {/* Stats Row */}
       <div className="w-full flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1.5 bg-white rounded-xl px-3 py-1.5 shadow-sm border border-gray-100">
-            <span className="text-xs font-bold text-gray-400 uppercase">Hits</span>
-            <span className="text-base font-black text-brand-red">{hits}</span>
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 bg-white rounded-xl px-2.5 py-1 shadow-sm border border-gray-100">
+            <span className="text-[10px] font-bold text-gray-400 uppercase">Hits</span>
+            <span className="text-sm font-black text-brand-red">{hits}</span>
           </div>
-          <div className="flex items-center gap-1.5 bg-white rounded-xl px-3 py-1.5 shadow-sm border border-gray-100">
-            <span className="text-xs font-bold text-gray-400 uppercase">Combo</span>
+          <div className="flex items-center gap-1 bg-white rounded-xl px-2.5 py-1 shadow-sm border border-gray-100">
+            <span className="text-[10px] font-bold text-gray-400 uppercase">Combo</span>
             <span
-              className="text-base font-black"
+              className="text-sm font-black"
               style={{ color: combo > 2 ? "#FFD600" : "#9CA3AF" }}
             >
               {combo}x
@@ -205,7 +205,10 @@ export default function VentArena({ monster, onFinish }: VentArenaProps) {
       </div>
 
       {/* Monster Tap Area — with scene background */}
-      <div className={`relative flex items-center justify-center w-full h-48 min-[380px]:h-56 rounded-3xl transition-all duration-500 ${scene.bgClass}`}>
+      <div
+        className={`relative flex items-center justify-center w-full rounded-3xl transition-all duration-500 ${scene.bgClass}`}
+        style={{ height: "clamp(120px, 25vh, 224px)" }}
+      >
         {/* Scene particles */}
         <AnimatePresence>
           {particles.map((p) => (
@@ -301,19 +304,35 @@ export default function VentArena({ monster, onFinish }: VentArenaProps) {
 
       {/* ===== TOOL / WEAPON SELECTOR ===== */}
       <div className="w-full">
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-hide">
+        <div className="flex items-center justify-between mb-1">
+          <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">
+            Weapon
+          </span>
+          <AnimatePresence mode="wait">
+            <motion.span
+              key={toolId}
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -4 }}
+              transition={{ duration: 0.15 }}
+              className="text-[11px] font-black uppercase tracking-wide text-brand-purple"
+            >
+              {tool.emoji} {tool.label}
+            </motion.span>
+          </AnimatePresence>
+        </div>
+        <div className="flex items-center gap-1 overflow-x-auto pb-1 scrollbar-hide">
           {TOOLS.map((t) => (
             <button
               key={t.id}
               onClick={() => setToolId(t.id)}
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black uppercase tracking-wide whitespace-nowrap transition-all duration-200 border-2 shrink-0 ${
+              className={`flex items-center justify-center w-11 h-9 rounded-xl text-lg transition-all duration-200 border-2 shrink-0 ${
                 toolId === t.id
-                  ? "bg-white shadow-md border-brand-purple text-brand-purple"
-                  : "bg-white/60 border-transparent text-gray-400 hover:text-gray-600"
+                  ? "bg-white shadow-md border-brand-purple scale-110"
+                  : "bg-white/60 border-transparent hover:border-gray-200"
               }`}
             >
-              <span className="text-base">{t.emoji}</span>
-              <span className="hidden min-[380px]:inline">{t.label}</span>
+              {t.emoji}
             </button>
           ))}
         </div>
@@ -330,7 +349,7 @@ export default function VentArena({ monster, onFinish }: VentArenaProps) {
       <motion.button
         whileTap={{ scale: 0.95 }}
         onClick={() => onFinish(hits, bestComboRef.current, sceneId, toolId)}
-        className="w-full py-3.5 rounded-2xl bg-brand-yellow text-black text-lg font-black uppercase tracking-wide shadow-md border-2 border-black/5 mt-1"
+        className="w-full py-2.5 rounded-2xl bg-brand-yellow text-black text-base font-black uppercase tracking-wide shadow-md border-2 border-black/5"
       >
         {hits === 0 ? "Skip" : "I'm Done 😌"}
       </motion.button>
