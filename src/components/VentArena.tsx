@@ -11,9 +11,54 @@ interface VentArenaProps {
   onFinish: (hitCount: number, bestCombo: number, sceneId: string, toolId: string) => void;
 }
 
+// ─── Attack config ────────────────────────────────────────────────────────────
+const ATTACKS = [
+  {
+    id: "slap" as const,
+    label: "Slap",
+    emoji: "👋",
+    minDmg: 8,
+    maxDmg: 16,
+    color: "#FF6B6B",
+    texts: ["SMACK!", "SLIPPER JUSTICE!", "WHAP!", "SLAP!", "THWACK!", "CHANCLA!"],
+    comboText: "SLAP FRENZY!",
+  },
+  {
+    id: "punch" as const,
+    label: "Punch",
+    emoji: "👊",
+    minDmg: 13,
+    maxDmg: 22,
+    color: "#7C3AED",
+    texts: ["BONK!", "CRUSH!", "POW!", "SMASH!", "OBLITERATE!", "KO!"],
+    comboText: "PUNCH COMBO!",
+  },
+  {
+    id: "roast" as const,
+    label: "Roast",
+    emoji: "🎤",
+    minDmg: 15,
+    maxDmg: 28,
+    color: "#FFD600",
+    texts: ["DESTROYED!", "EXPOSED!", "VERBAL NUKE!", "SERVED!", "RECEIPTS OUT!", "NO CHILL!"],
+    comboText: "ROAST ROYALE!",
+  },
+] as const;
+
+type AttackId = typeof ATTACKS[number]["id"];
+
+// ─── Victory messages ─────────────────────────────────────────────────────────
+const VICTORY_MESSAGES: ((name: string) => string)[] = [
+  (n) => `${n} has been defeated by direct communication.`,
+  (n) => `${n} has left the building. Forever.`,
+  (n) => `${n} just got absolutely cooked. RIP.`,
+  (n) => `${n} filed for emotional bankruptcy.`,
+  (n) => `${n} has disconnected from reality.`,
+];
+
+// ─── Constants ────────────────────────────────────────────────────────────────
 const COMBO_TIMEOUT_MS = 800;
 const FLOAT_DURATION_MS = 700;
-const STICKER_COLORS = ["#EF4444", "#FFD600", "#7C3AED", "#FF1493", "#06B6D4"];
 
 interface FloatingText {
   id: number;
@@ -34,6 +79,7 @@ function pickRandom<T>(arr: readonly T[]): T {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
+// ─── Component ────────────────────────────────────────────────────────────────
 export default function VentArena({ monster, onFinish }: VentArenaProps) {
   const [hits, setHits] = useState(0);
   const [combo, setCombo] = useState(0);
@@ -42,98 +88,115 @@ export default function VentArena({ monster, onFinish }: VentArenaProps) {
   const [sceneId, setSceneId] = useState("office");
   const [toolId, setToolId] = useState("slipper");
   const [particles, setParticles] = useState<SceneParticle[]>([]);
+  const [monsterHP, setMonsterHP] = useState(100);
+  const [isDefeated, setIsDefeated] = useState(false);
+  const [victoryMsg, setVictoryMsg] = useState("");
+  const [tauntIndex, setTauntIndex] = useState(0);
 
   const bestComboRef = useRef(0);
   const comboTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const floatIdRef = useRef(0);
   const particleIdRef = useRef(0);
+  const hitCountRef = useRef(0);
 
   const scene: SceneConfig = getScene(sceneId);
   const tool: ToolConfig = getTool(toolId);
-  const stressLevel = Math.min(100, Math.round(hits * 4.5));
 
-  // Spawn scene particle on hit
-  const spawnParticle = useCallback(
-    (scn: SceneConfig) => {
-      const id = ++particleIdRef.current;
-      const emoji = pickRandom(scn.particles);
-      const x = 10 + Math.random() * 80;
-      const delay = Math.random() * 0.15;
-      setParticles((prev) => [...prev.slice(-4), { id, emoji, x, delay }]);
-      setTimeout(() => setParticles((prev) => prev.filter((p) => p.id !== id)), 1200);
-    },
-    [],
-  );
+  const taunts = monster.taunts ?? [];
+  const activeTaunt = taunts.length > 0 ? taunts[tauntIndex % taunts.length] : null;
 
-  const spawnFloat = useCallback(
-    (isCombo: boolean, currentTool: ToolConfig, currentScene: SceneConfig) => {
-      const id = ++floatIdRef.current;
-
-      let text: string;
-      if (isCombo) {
-        text = pickRandom(currentTool.comboTexts);
-      } else {
-        // Mix tool + scene hit texts (70% tool, 30% scene)
-        text =
-          Math.random() < 0.7
-            ? pickRandom(currentTool.hitTexts)
-            : pickRandom(currentScene.hitTexts);
-      }
-
-      const color = isCombo ? "#FFD600" : pickRandom(STICKER_COLORS);
-
-      setFloats((prev) => [
-        ...prev.slice(-5),
-        { id, text, x: -40 + Math.random() * 80, y: -20 + Math.random() * 40, color },
-      ]);
-      setTimeout(() => setFloats((prev) => prev.filter((f) => f.id !== id)), FLOAT_DURATION_MS);
-    },
-    [],
-  );
-
-  const handleTap = () => {
-    // Capture current values for the callback
-    const currentTool = getTool(toolId);
-    const currentScene = getScene(sceneId);
-
-    setHits((h) => h + 1);
-    setSquash(true);
-    setTimeout(() => setSquash(false), 150);
-
-    if (comboTimerRef.current) clearTimeout(comboTimerRef.current);
-
-    setCombo((c) => {
-      const next = c + 1;
-      if (next > bestComboRef.current) bestComboRef.current = next;
-      spawnFloat(next > 1 && next % 3 === 0, currentTool, currentScene);
-      return next;
-    });
-
-    // Spawn scene particles every 2nd hit
-    if ((hits + 1) % 2 === 0) {
-      spawnParticle(currentScene);
+  // ── Defeat detection ────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (monsterHP <= 0 && !isDefeated) {
+      setIsDefeated(true);
+      setVictoryMsg(pickRandom(VICTORY_MESSAGES)(monster.name));
     }
+  }, [monsterHP, isDefeated, monster.name]);
 
-    comboTimerRef.current = setTimeout(() => setCombo(0), COMBO_TIMEOUT_MS);
-  };
+  // ── Spawn helpers ────────────────────────────────────────────────────────────
+  const spawnParticle = useCallback((scn: SceneConfig) => {
+    const id = ++particleIdRef.current;
+    const emoji = pickRandom(scn.particles);
+    const x = 10 + Math.random() * 80;
+    const delay = Math.random() * 0.15;
+    setParticles((prev) => [...prev.slice(-4), { id, emoji, x, delay }]);
+    setTimeout(() => setParticles((prev) => prev.filter((p) => p.id !== id)), 1200);
+  }, []);
 
-  // Scene flavor text (changes on scene switch)
-  const [flavorText, setFlavorText] = useState("");
+  const spawnFloat = useCallback((text: string, color: string) => {
+    const id = ++floatIdRef.current;
+    setFloats((prev) => [
+      ...prev.slice(-5),
+      { id, text, x: -40 + Math.random() * 80, y: -20 + Math.random() * 40, color },
+    ]);
+    setTimeout(() => setFloats((prev) => prev.filter((f) => f.id !== id)), FLOAT_DURATION_MS);
+  }, []);
+
+  // ── Core attack handler ──────────────────────────────────────────────────────
+  const handleAttack = useCallback(
+    (attackId: AttackId) => {
+      if (isDefeated) return;
+
+      const attack = ATTACKS.find((a) => a.id === attackId) ?? ATTACKS[0];
+      const damage =
+        Math.floor(Math.random() * (attack.maxDmg - attack.minDmg + 1)) + attack.minDmg;
+
+      // Hits + combo
+      setHits((h) => h + 1);
+      hitCountRef.current += 1;
+      setSquash(true);
+      setTimeout(() => setSquash(false), 150);
+
+      if (comboTimerRef.current) clearTimeout(comboTimerRef.current);
+      setCombo((c) => {
+        const next = c + 1;
+        if (next > bestComboRef.current) bestComboRef.current = next;
+        const isComboHit = next > 1 && next % 3 === 0;
+        spawnFloat(
+          isComboHit ? attack.comboText : pickRandom(attack.texts),
+          isComboHit ? "#FFD600" : attack.color,
+        );
+        return next;
+      });
+      comboTimerRef.current = setTimeout(() => setCombo(0), COMBO_TIMEOUT_MS);
+
+      // Scene particles every 2nd hit
+      if (hitCountRef.current % 2 === 0) spawnParticle(getScene(sceneId));
+
+      // Cycle taunts every hit
+      if (taunts.length > 0) setTauntIndex((i) => (i + 1) % taunts.length);
+
+      // Reduce HP
+      setMonsterHP((hp) => Math.max(0, hp - damage));
+    },
+    [isDefeated, sceneId, taunts.length, spawnFloat, spawnParticle],
+  );
+
+  // Tap the monster = random attack
+  const handleTap = useCallback(() => {
+    handleAttack(pickRandom(ATTACKS).id);
+  }, [handleAttack]);
+
+  // Scene flavor text
+  const [flavorText, setFlavorText] = useState(() => pickRandom(scene.flavorTexts));
   useEffect(() => {
     setFlavorText(pickRandom(scene.flavorTexts));
   }, [scene]);
 
-  // Every 5th hit show a scene-specific flavor text
   const flavorHit = hits > 0 && hits % 5 === 0;
   useEffect(() => {
-    if (flavorHit) {
-      setFlavorText(pickRandom(scene.flavorTexts));
-    }
+    if (flavorHit) setFlavorText(pickRandom(scene.flavorTexts));
   }, [flavorHit, scene]);
 
+  // ── Derived values ───────────────────────────────────────────────────────────
+  const hpColor =
+    monsterHP > 60 ? "#22C55E" : monsterHP > 30 ? "#FFD600" : "#EF4444";
+
+  // ── Render ───────────────────────────────────────────────────────────────────
   return (
-    <div className="flex flex-col items-center gap-1.5 min-[380px]:gap-2.5 w-full max-w-sm mx-auto px-3">
-      {/* ===== SCENE TABS ===== */}
+    <div className="flex flex-col items-center gap-1.5 min-[380px]:gap-2 w-full max-w-sm mx-auto px-3">
+
+      {/* ── SCENE TABS ─────────────────────────────────────────────────────── */}
       <div className="w-full flex items-center gap-1.5 bg-white/80 rounded-2xl p-1 shadow-sm border border-gray-100">
         {SCENES.map((s) => (
           <button
@@ -151,31 +214,27 @@ export default function VentArena({ monster, onFinish }: VentArenaProps) {
         ))}
       </div>
 
-      {/* Stress Level + Stats — combined compact row on small screens */}
+      {/* ── MONSTER HP BAR ─────────────────────────────────────────────────── */}
       <div className="w-full flex flex-col gap-1">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-black uppercase tracking-widest text-gray-500">
-              Stress Level
-            </span>
-            {stressLevel > 60 && (
-              <span className="text-[10px] font-black uppercase tracking-wide text-brand-red bg-red-50 px-2 py-0.5 rounded-full">
-                Critical Stress Detected
-              </span>
-            )}
-          </div>
-          <span className="text-lg font-black text-brand-purple">{stressLevel}%</span>
+          <span className="text-xs font-black uppercase tracking-widest text-gray-500">
+            Monster HP
+          </span>
+          <span className="text-lg font-black" style={{ color: hpColor }}>
+            {monsterHP}
+          </span>
         </div>
         <div className="w-full h-2 rounded-full bg-gray-200 overflow-hidden">
           <motion.div
-            animate={{ width: `${stressLevel}%` }}
+            animate={{ width: `${monsterHP}%` }}
             transition={{ duration: 0.3 }}
-            className="h-full rounded-full stress-bar-gradient"
+            className="h-full rounded-full"
+            style={{ backgroundColor: hpColor }}
           />
         </div>
       </div>
 
-      {/* Stats Row */}
+      {/* ── HITS + COMBO ───────────────────────────────────────────────────── */}
       <div className="w-full flex items-center justify-between">
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1 bg-white rounded-xl px-2.5 py-1 shadow-sm border border-gray-100">
@@ -204,7 +263,7 @@ export default function VentArena({ monster, onFinish }: VentArenaProps) {
         )}
       </div>
 
-      {/* Monster Tap Area — with scene background */}
+      {/* ── MONSTER TAP AREA ───────────────────────────────────────────────── */}
       <div
         className={`relative flex items-center justify-center w-full rounded-3xl transition-all duration-500 ${scene.bgClass}`}
         style={{ height: "clamp(120px, 25vh, 224px)" }}
@@ -251,6 +310,7 @@ export default function VentArena({ monster, onFinish }: VentArenaProps) {
           ))}
         </AnimatePresence>
 
+        {/* Monster */}
         <motion.button
           onClick={handleTap}
           animate={
@@ -260,12 +320,13 @@ export default function VentArena({ monster, onFinish }: VentArenaProps) {
           }
           transition={{ type: "spring", stiffness: 600, damping: 12 }}
           className="text-8xl select-none cursor-pointer active:scale-90 transition-none drop-shadow-lg z-10"
+          disabled={isDefeated}
         >
           {monster.emoji}
         </motion.button>
 
-        {/* Flavor text on every 5th hit */}
-        {flavorHit && (
+        {/* Flavor text every 5th hit */}
+        {flavorHit && !isDefeated && (
           <motion.div
             key={`flavor-${hits}`}
             initial={{ scale: 0, opacity: 0 }}
@@ -273,16 +334,13 @@ export default function VentArena({ monster, onFinish }: VentArenaProps) {
             exit={{ opacity: 0 }}
             className="absolute bottom-2 left-2 right-2 text-center z-10"
           >
-            <span
-              className="font-display text-base text-brand-red tracking-wider inline-block bg-white/80 backdrop-blur-sm rounded-full px-4 py-1"
-              style={{ textShadow: "1px 1px 0 rgba(0,0,0,0.06)" }}
-            >
+            <span className="font-display text-base text-brand-red tracking-wider inline-block bg-white/80 backdrop-blur-sm rounded-full px-4 py-1">
               {flavorText}
             </span>
           </motion.div>
         )}
 
-        {/* Active tool indicator — bounces on switch */}
+        {/* Active tool indicator */}
         <AnimatePresence mode="wait">
           <motion.div
             key={toolId}
@@ -295,14 +353,67 @@ export default function VentArena({ monster, onFinish }: VentArenaProps) {
             {tool.emoji}
           </motion.div>
         </AnimatePresence>
+
+        {/* ── VICTORY OVERLAY ───────────────────────────────────────────────── */}
+        <AnimatePresence>
+          {isDefeated && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.85 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ type: "spring", stiffness: 300, damping: 20 }}
+              className="absolute inset-0 flex flex-col items-center justify-center rounded-3xl bg-black/80 backdrop-blur-sm z-20 px-5 text-center gap-1.5"
+            >
+              <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ type: "spring", stiffness: 400, damping: 10, delay: 0.1 }}
+                className="text-4xl"
+              >
+                💀
+              </motion.div>
+              <motion.p
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+                className="font-display text-2xl text-brand-yellow tracking-wider leading-tight"
+              >
+                DEFEATED!
+              </motion.p>
+              <motion.p
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.35 }}
+                className="text-white text-[11px] leading-snug opacity-90 max-w-[190px]"
+              >
+                {victoryMsg}
+              </motion.p>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
-      {/* Monster Name */}
-      <p className="text-sm font-black uppercase tracking-wider text-gray-400">
-        {monster.name}
-      </p>
+      {/* ── MONSTER NAME + TAUNT ───────────────────────────────────────────── */}
+      <div className="w-full text-center min-h-[32px]">
+        <p className="text-sm font-black uppercase tracking-wider text-gray-400">
+          {monster.name}
+        </p>
+        <AnimatePresence mode="wait">
+          {activeTaunt && !isDefeated && (
+            <motion.p
+              key={activeTaunt}
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -4 }}
+              transition={{ duration: 0.2 }}
+              className="text-[11px] font-bold italic text-gray-500 mt-0.5 leading-tight"
+            >
+              &ldquo;{activeTaunt}&rdquo;
+            </motion.p>
+          )}
+        </AnimatePresence>
+      </div>
 
-      {/* ===== TOOL / WEAPON SELECTOR ===== */}
+      {/* ── WEAPON SELECTOR ────────────────────────────────────────────────── */}
       <div className="w-full">
         <div className="flex items-center justify-between mb-1">
           <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">
@@ -338,21 +449,46 @@ export default function VentArena({ monster, onFinish }: VentArenaProps) {
         </div>
       </div>
 
-      {/* Progress hint */}
-      {stressLevel < 100 && hits > 0 && (
-        <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wide">
-          {100 - stressLevel}% until complete breakdown!
-        </p>
-      )}
+      {/* ── ATTACK BUTTONS ─────────────────────────────────────────────────── */}
+      <div className="w-full grid grid-cols-3 gap-2">
+        {ATTACKS.map((attack) => (
+          <motion.button
+            key={attack.id}
+            whileTap={{ scale: 0.9 }}
+            onClick={() => handleAttack(attack.id)}
+            disabled={isDefeated}
+            className="flex flex-col items-center justify-center gap-0.5 py-2.5 rounded-2xl font-black uppercase text-[11px] tracking-wide border-2 border-black/8 shadow-md disabled:opacity-40 transition-all active:shadow-inner"
+            style={{
+              backgroundColor: attack.color,
+              color: attack.color === "#FFD600" ? "#000" : "#fff",
+            }}
+          >
+            <span className="text-xl leading-none">{attack.emoji}</span>
+            {attack.label}
+          </motion.button>
+        ))}
+      </div>
 
-      {/* Finish Button */}
-      <motion.button
-        whileTap={{ scale: 0.95 }}
-        onClick={() => onFinish(hits, bestComboRef.current, sceneId, toolId)}
-        className="w-full py-2.5 rounded-2xl bg-brand-yellow text-black text-base font-black uppercase tracking-wide shadow-md border-2 border-black/5"
-      >
-        {hits === 0 ? "Skip" : "I'm Done 😌"}
-      </motion.button>
+      {/* ── CLAIM VICTORY / SKIP ───────────────────────────────────────────── */}
+      {isDefeated ? (
+        <motion.button
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.5 }}
+          whileTap={{ scale: 0.95 }}
+          onClick={() => onFinish(hits, bestComboRef.current, sceneId, toolId)}
+          className="w-full py-2.5 rounded-2xl bg-brand-yellow text-black text-base font-black uppercase tracking-wide shadow-md border-2 border-black/5"
+        >
+          🏆 Claim Victory
+        </motion.button>
+      ) : (
+        <button
+          onClick={() => onFinish(hits, bestComboRef.current, sceneId, toolId)}
+          className="text-[11px] font-bold text-gray-400 uppercase tracking-wide py-1"
+        >
+          {hits === 0 ? "Skip" : "I'm Done 😌"}
+        </button>
+      )}
     </div>
   );
 }
