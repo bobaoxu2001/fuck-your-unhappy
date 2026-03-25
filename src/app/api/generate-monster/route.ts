@@ -1,7 +1,7 @@
-import Anthropic from "@anthropic-ai/sdk";
+import OpenAI from "openai";
 import { NextRequest, NextResponse } from "next/server";
 
-const client = new Anthropic();
+const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 const SYSTEM_PROMPT = `You are a monster generator for a stress-relief app called "Fuck Your Unhappy".
 The user types what frustrated them, and you create an exaggerated cartoon villain based on it.
@@ -30,17 +30,18 @@ export async function POST(req: NextRequest) {
       ? `User's frustration: "${input.trim()}"\n\nImportant: do NOT generate a monster named "${excludeName}". Pick a different angle.`
       : `User's frustration: "${input.trim()}"`;
 
-    const message = await client.messages.create({
-      model: "claude-haiku-4-5-20251001",
+    const response = await client.chat.completions.create({
+      model: "gpt-4o-mini",
       max_tokens: 300,
-      system: SYSTEM_PROMPT,
-      messages: [{ role: "user", content: userPrompt }],
+      messages: [
+        { role: "system", content: SYSTEM_PROMPT },
+        { role: "user", content: userPrompt },
+      ],
     });
 
-    const raw = message.content[0].type === "text" ? message.content[0].text : "";
+    const raw = response.choices[0]?.message?.content ?? "";
     const monster = JSON.parse(raw.trim());
 
-    // Ensure required fields are present
     if (!monster.name || !monster.emoji || !monster.description) {
       throw new Error("Incomplete monster data from AI");
     }
