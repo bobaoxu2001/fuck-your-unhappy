@@ -14,11 +14,16 @@ RULES:
 - Taunts: exactly 3 short first-person lines the monster taunts the user with. Max 8 words each. Punchy and ridiculous.
 - Emoji: pick ONE from this exact list that best fits the vibe: 👹 👺 👻 💀 🤡 😈 🧌 🧟 👾 🦹 🐲 🦊 🐸 🤖 🫠 🌚
 - Color: pick ONE hex from this list: #FF6B6B #FFA94D #9775FA #FF8787 #66D9E8 #E599F7 #FFC078 #74C0FC
+- Archetype: one word that captures their villain type. E.g. "tyrant", "ghost", "bureaucrat", "gossip", "parasite", "drama queen"
+- Aura: 2-4 words describing their oppressive energy. E.g. "toxic positivity", "passive aggression", "weaponized incompetence"
 
 Respond with ONLY valid JSON. No markdown, no explanation, no code block:
-{"name":"...","emoji":"...","description":"...","weakness":"...","color":"...","taunts":["...","...","..."]}`;
+{"name":"...","emoji":"...","description":"...","weakness":"...","color":"...","taunts":["...","...","..."],"archetype":"...","aura":"..."}`;
 
 export async function POST(req: NextRequest) {
+  const keyLoaded = !!process.env.OPENAI_API_KEY;
+  console.log(`[generate-monster] OPENAI_API_KEY loaded: ${keyLoaded}`);
+
   try {
     const { input, excludeName } = await req.json();
 
@@ -32,7 +37,7 @@ export async function POST(req: NextRequest) {
 
     const response = await client.chat.completions.create({
       model: "gpt-4o-mini",
-      max_tokens: 300,
+      max_tokens: 350,
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
         { role: "user", content: userPrompt },

@@ -38,9 +38,17 @@ export default function Home() {
     setGenerating(false);
   };
 
-  const handleFinish = (hitCount: number, bestCombo: number, sceneId?: string, toolId?: string) => {
+  const handleFinish = (
+    hitCount: number,
+    bestCombo: number,
+    sceneId?: string,
+    toolId?: string,
+    totalDamage?: number,
+    maxSingleHit?: number,
+    rageActivations?: number,
+  ) => {
     if (monster) {
-      const data = buildSummary(monster, hitCount, bestCombo);
+      const data = buildSummary(monster, hitCount, bestCombo, totalDamage, maxSingleHit, rageActivations);
       data.sceneId = sceneId;
       data.toolId = toolId;
       setSummary(data);

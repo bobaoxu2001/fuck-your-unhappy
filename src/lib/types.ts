@@ -6,6 +6,8 @@ export interface MonsterData {
   color: string;
   keywords: string[];
   taunts?: string[];
+  archetype?: string; // e.g. "tyrant", "ghost", "bureaucrat"
+  aura?: string;      // e.g. "toxic positivity", "passive aggression"
 }
 
 export interface ReleaseSummaryData {
@@ -17,6 +19,9 @@ export interface ReleaseSummaryData {
   roastLine: string;
   sceneId?: string;
   toolId?: string;
+  totalDamage?: number;
+  maxSingleHit?: number;
+  rageActivations?: number;
 }
 
 export type Screen = "input" | "reveal" | "arena" | "summary";

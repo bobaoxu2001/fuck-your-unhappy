@@ -99,18 +99,32 @@ export default function ReleaseSummary({ data, onRestart }: ReleaseSummaryProps)
       {/* Stat Cards */}
       <div className="w-full grid grid-cols-2 gap-3">
         <StatCard
-          label="Damage Dealt"
-          value={`+${data.hitCount * 28}%`}
-          color="#22C55E"
-          bgColor="#F0FDF4"
+          label="Total Damage"
+          value={(data.totalDamage ?? 0).toLocaleString()}
+          color="#EF4444"
+          bgColor="#FFF1F2"
           delay={0.5}
         />
         <StatCard
-          label="Stress Left"
-          value="ZERO"
+          label="Biggest Hit"
+          value={String(data.maxSingleHit ?? 0)}
+          color="#F97316"
+          bgColor="#FFF7ED"
+          delay={0.6}
+        />
+        <StatCard
+          label="Best Combo"
+          value={`×${data.bestCombo}`}
           color="#7C3AED"
           bgColor="#FAF5FF"
-          delay={0.6}
+          delay={0.7}
+        />
+        <StatCard
+          label="Rage Activations"
+          value={data.rageActivations ? `${data.rageActivations}🔥` : "0"}
+          color="#DC2626"
+          bgColor="#FEF2F2"
+          delay={0.8}
         />
       </div>
 
