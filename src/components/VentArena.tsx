@@ -99,6 +99,16 @@ const VICTORY_MESSAGES: ((name: string) => string)[] = [
 // ─── Knockout exclamations ────────────────────────────────────────────────────
 const KO_TEXTS = ["💥 K.O.!!", "🏆 FINISHED!!", "☠️ DELETED!!", "💀 DESTROYED!!", "⚡ GAME OVER!!"];
 
+// ─── Fallback reactions for older monsters without the field ──────────────────
+const FALLBACK_REACTIONS = [
+  "That's not what I said!",
+  "You're too sensitive.",
+  "I was only trying to help!",
+  "Why is everyone attacking me?",
+  "That's completely unfair.",
+  "I'm literally the victim here.",
+];
+
 // ─── Floating text type ───────────────────────────────────────────────────────
 interface FloatingText {
   id: number;
@@ -107,6 +117,7 @@ interface FloatingText {
   y: number;
   color: string;
   big?: boolean;
+  speech?: boolean;  // speech bubble style — defensive reaction
 }
 
 interface SceneParticle {
@@ -159,6 +170,7 @@ export default function VentArena({ monster, onFinish }: VentArenaProps) {
   const rageCountRef       = useRef(0);
   const rageTimerRef       = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isRagingRef        = useRef(false);   // sync ref for use inside callbacks
+  const reactionIdxRef     = useRef(0);       // cycles through monster reactions
 
   const scene: SceneConfig = getScene(sceneId);
   const tool: ToolConfig   = getTool(toolId);
@@ -190,13 +202,19 @@ export default function VentArena({ monster, onFinish }: VentArenaProps) {
     setTimeout(() => setParticles((p) => p.filter((x) => x.id !== id)), 1200);
   }, []);
 
-  const spawnFloat = useCallback((text: string, color: string, big = false) => {
+  const spawnFloat = useCallback((text: string, color: string, big = false, speech = false) => {
     const id = ++floatIdRef.current;
+    // Speech bubbles stay near center; impact texts scatter more
+    const x = speech ? (-15 + Math.random() * 30) : (-40 + Math.random() * 80);
+    const y = speech ? (10 + Math.random() * 20) : (-20 + Math.random() * 40);
     setFloats((f) => [
       ...f.slice(-6),
-      { id, text, x: -40 + Math.random() * 80, y: -20 + Math.random() * 40, color, big },
+      { id, text, x, y, color, big, speech },
     ]);
-    setTimeout(() => setFloats((f) => f.filter((x) => x.id !== id)), FLOAT_DURATION);
+    setTimeout(
+      () => setFloats((f) => f.filter((item) => item.id !== id)),
+      speech ? FLOAT_DURATION + 600 : FLOAT_DURATION,
+    );
   }, []);
 
   // ─── Rage mode ───────────────────────────────────────────────────────────────
@@ -265,6 +283,14 @@ export default function VentArena({ monster, onFinish }: VentArenaProps) {
       // Scene particles every 2nd hit
       if (hitCountRef.current % 2 === 0) spawnParticle(getScene(sceneId));
 
+      // Speech bubble reaction every 3rd hit — the monster defends themselves
+      if (hitCountRef.current % 3 === 0) {
+        const pool = monster.reactions?.length ? monster.reactions : FALLBACK_REACTIONS;
+        const reaction = pool[reactionIdxRef.current % pool.length];
+        reactionIdxRef.current += 1;
+        setTimeout(() => spawnFloat(reaction, "#1F2937", false, true), 180);
+      }
+
       // Cycle taunts
       if (taunts.length > 0) setTauntIndex((i) => (i + 1) % taunts.length);
 
@@ -280,7 +306,7 @@ export default function VentArena({ monster, onFinish }: VentArenaProps) {
       // Reduce HP
       setMonsterHP((hp) => Math.max(0, hp - damage));
     },
-    [isOver, sceneId, taunts.length, spawnFloat, spawnParticle, activateRage],
+    [isOver, sceneId, taunts.length, monster.reactions, spawnFloat, spawnParticle, activateRage],
   );
 
   const handleTap = useCallback(() => {
@@ -455,30 +481,57 @@ export default function VentArena({ monster, onFinish }: VentArenaProps) {
           ))}
         </AnimatePresence>
 
-        {/* Floating hit texts */}
+        {/* Floating hit texts + speech bubble reactions */}
         <AnimatePresence>
-          {floats.map((f) => (
-            <motion.div
-              key={f.id}
-              initial={{ opacity: 1, y: 0, scale: f.big ? 0.7 : 0.5, x: f.x }}
-              animate={{ opacity: 0, y: -80 + f.y, scale: f.big ? 1.5 : 1.2, x: f.x }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.65, ease: "easeOut" }}
-              className="absolute top-4 pointer-events-none select-none z-10"
-            >
-              <span
-                className="comic-sticker text-white"
-                style={{
-                  backgroundColor: f.color,
-                  color: f.color === "#FFD600" ? "#000" : "#fff",
-                  fontSize: f.big ? "0.9rem" : "0.75rem",
-                  ["--sticker-rotate" as string]: `${-6 + Math.random() * 12}deg`,
-                }}
+          {floats.map((f) =>
+            f.speech ? (
+              /* ── Speech bubble: defensive reaction ── */
+              <motion.div
+                key={f.id}
+                initial={{ opacity: 0, y: 0, scale: 0.75, x: f.x }}
+                animate={{ opacity: [0, 1, 1, 0], y: -55 + f.y, scale: 1, x: f.x }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 1.3, times: [0, 0.08, 0.72, 1], ease: "easeOut" }}
+                className="absolute top-6 pointer-events-none select-none z-10"
               >
-                {f.text}
-              </span>
-            </motion.div>
-          ))}
+                <div className="relative">
+                  <div
+                    className="bg-white border-2 border-gray-800 rounded-2xl rounded-bl-sm px-3 py-1.5 shadow-md max-w-[150px] text-center"
+                    style={{ boxShadow: "2px 2px 0 #1F2937" }}
+                  >
+                    <span className="text-[10px] font-bold italic text-gray-800 leading-tight block">
+                      &ldquo;{f.text}&rdquo;
+                    </span>
+                  </div>
+                  {/* Tail of the speech bubble */}
+                  <div className="absolute -bottom-2 left-4 w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[8px] border-t-gray-800" />
+                  <div className="absolute -bottom-1.5 left-[17px] w-0 h-0 border-l-[5px] border-l-transparent border-r-[5px] border-r-transparent border-t-[7px] border-t-white" />
+                </div>
+              </motion.div>
+            ) : (
+              /* ── Standard impact text ── */
+              <motion.div
+                key={f.id}
+                initial={{ opacity: 1, y: 0, scale: f.big ? 0.7 : 0.5, x: f.x }}
+                animate={{ opacity: 0, y: -80 + f.y, scale: f.big ? 1.5 : 1.2, x: f.x }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.65, ease: "easeOut" }}
+                className="absolute top-4 pointer-events-none select-none z-10"
+              >
+                <span
+                  className="comic-sticker text-white"
+                  style={{
+                    backgroundColor: f.color,
+                    color: f.color === "#FFD600" ? "#000" : "#fff",
+                    fontSize: f.big ? "0.9rem" : "0.75rem",
+                    ["--sticker-rotate" as string]: `${-6 + Math.random() * 12}deg`,
+                  }}
+                >
+                  {f.text}
+                </span>
+              </motion.div>
+            )
+          )}
         </AnimatePresence>
 
         {/* Monster emoji */}
@@ -610,16 +663,26 @@ export default function VentArena({ monster, onFinish }: VentArenaProps) {
         </AnimatePresence>
       </motion.div>
 
-      {/* ── MONSTER NAME + TAUNT ───────────────────────────────────────────── */}
+      {/* ── MONSTER NAME + ARCHETYPE + TAUNT ──────────────────────────────── */}
       <div className="w-full text-center min-h-[32px]">
-        <p className="text-sm font-black uppercase tracking-wider text-gray-400">
-          {monster.name}
-          {monster.aura && (
-            <span className="ml-1.5 text-[10px] font-bold text-gray-300 normal-case tracking-normal">
-              · {monster.aura}
+        <div className="flex items-center justify-center gap-2">
+          <p className="text-sm font-black uppercase tracking-wider text-gray-500">
+            {monster.name}
+          </p>
+          {monster.archetype && (
+            <span
+              className="text-[9px] font-black uppercase tracking-widest rounded-full px-2 py-0.5 text-white"
+              style={{ backgroundColor: monster.color + "CC" }}
+            >
+              {monster.archetype}
             </span>
           )}
-        </p>
+        </div>
+        {monster.aura && (
+          <p className="text-[9px] font-bold text-gray-300 uppercase tracking-widest mt-0.5">
+            ✦ {monster.aura}
+          </p>
+        )}
         <AnimatePresence mode="wait">
           {activeTaunt && victoryPhase === 0 && (
             <motion.p

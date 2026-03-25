@@ -6,8 +6,11 @@ export interface MonsterData {
   color: string;
   keywords: string[];
   taunts?: string[];
-  archetype?: string; // e.g. "tyrant", "ghost", "bureaucrat"
-  aura?: string;      // e.g. "toxic positivity", "passive aggression"
+  archetype?: string;   // human relationship type e.g. "toxic boss", "helicopter parent"
+  aura?: string;        // oppressive energy e.g. "weaponized incompetence"
+  appearance?: string;  // cartoon visual description e.g. "a sweaty man in a polo shirt"
+  vibe?: string;        // context category: "corporate" | "family" | "dating" | "friendship" | "school" | "online"
+  reactions?: string[]; // defensive phrases said when hit e.g. "You're too sensitive!"
 }
 
 export interface ReleaseSummaryData {
