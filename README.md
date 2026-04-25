@@ -1,12 +1,12 @@
 # Fuck Your Unhappy
 
-A stress-relief micro app that turns your daily frustrations into cartoon monsters you can smash to pieces.
+A playful stress-relief web app that turns daily frustrations into ridiculous cartoon enemies, then lets users release the bad vibe in a safe, funny boss fight.
 
 ## Live Demo
 
 Try it now: [fuck-your-unhappy.vercel.app](https://fuck-your-unhappy.vercel.app)
 
-Type what's stressing you out, watch it become a monster, and tap it into oblivion — takes 30 seconds.
+Type what is stressing you out, watch it become a symbolic stress monster, roast/slap/punch it in a cartoon battle arena, then share the victory stats.
 
 ## Problem
 
@@ -14,7 +14,7 @@ Everyone has bad days — a terrible boss, a missed deadline, an anxiety spiral.
 
 ## Solution
 
-**Fuck Your Unhappy** gives you a chaotic, cartoonish arena to vent. Type what's bothering you, watch it become a ridiculous monster, then tap it into oblivion. It's dumb, it's loud, and it works.
+**Fuck Your Unhappy** gives users a fast, funny, cartoonish release loop. It is designed as stress-relief comedy, not real-world harm: real people are transformed into symbolic “stress monsters,” and attacks are metaphorical arcade actions.
 
 ## Demo Flow
 
@@ -22,19 +22,19 @@ Everyone has bad days — a terrible boss, a missed deadline, an anxiety spiral.
 Input → Reveal → Arena → Summary
 ```
 
-1. **Vent Input** — Type who or what ruined your day
-2. **Character Reveal** — A stress monster is generated based on your input, complete with a name, backstory, and weakness
-3. **Vent Arena** — Tap the monster to smash it. Build combos, watch the stress bar fill, and trigger comic-style hit effects
-4. **Release Summary** — See your stats: damage dealt, stress reduced, and a personalized roast line. Then start over or share your victory
+1. **Vent Input** — Type what made you unhappy
+2. **Character Reveal** — Generate a funny enemy with a name, archetype, appearance, weakness, taunts, intro, and victory line
+3. **Battle Arena** — Use Slap, Punch, Roast, and Rage Mode with HP, combo, damage, and reaction animations
+4. **Release Summary** — Review total damage, turns, best hit, best combo, rage activations, and share/restart
 
 ## Core Features (MVP)
 
-- Keyword-matched monster generation from a curated roster
-- Re-roll to get a different monster
-- Tap-to-smash arena with hit counter, combo streaks, and floating comic stickers
-- Stress bar with gradient fill and critical-stress alerts
-- Animated summary screen with stat cards
-- Full restart loop — smash as many bosses as you want
+- AI-generated monster profiles through a secure server route
+- Curated fallback monster roster when AI is unavailable
+- Safe symbolic fallback for sensitive inputs
+- Cartoon battle arena with HP, Rage Mode, combo, taunts, damage popups, and victory overlay
+- Shareable summary with stats and restart loop
+- Responsive layout for mobile and desktop
 
 ## Tech Stack
 
@@ -45,7 +45,7 @@ Input → Reveal → Arena → Summary
 | Styling | Tailwind CSS 4 |
 | Animation | Framer Motion |
 | Runtime | React 19 |
-| Design | Stitch (reference) |
+| AI | OpenAI API with local fallback content |
 
 ## Run Locally
 
@@ -53,16 +53,52 @@ Input → Reveal → Arena → Summary
 git clone https://github.com/bobaoxu2001/fuck-your-unhappy.git
 cd fuck-your-unhappy
 npm install
+cp .env.example .env.local
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) on your phone or in a mobile-sized browser window.
+Add your OpenAI key to `.env.local`:
+
+```bash
+OPENAI_API_KEY=sk-your-key-here
+```
+
+Open [http://localhost:3000](http://localhost:3000). The app still works without an API key by using curated fallback monsters.
+
+## Scripts
+
+```bash
+npm run dev
+npm run lint
+npm run build
+npm run start
+```
+
+## Environment Variables
+
+| Variable | Required | Notes |
+|----------|----------|-------|
+| `OPENAI_API_KEY` | Optional for local fallback, recommended for production | Used only in the server-side `/api/generate-monster` route |
+
+## Deployment
+
+This app is Vercel-ready.
+
+1. Import the GitHub repo into Vercel.
+2. Add `OPENAI_API_KEY` in Project Settings → Environment Variables.
+3. Deploy with the default Next.js settings.
+4. Run `npm run build` locally before pushing major changes.
+
+## Safety Notes
+
+- The app is comedy stress relief, not an encouragement of real-world harm.
+- Inputs that look like real people are transformed into symbolic stress patterns.
+- Sensitive or unsafe inputs use a gentle fallback monster instead of targeted content.
+- API keys stay server-side and `.env.local` is ignored by git.
 
 ## Future Improvements
 
-- **AI-generated monsters** — Use an LLM to create unique names, descriptions, and weaknesses from user input
 - **AI-generated visuals** — Generate custom monster artwork per session
-- **Share your victory** — Export summary as an image for social media
 - **Sound effects** — Comic-style hit sounds and victory fanfare
 - **Monster gallery** — Save and revisit past defeated monsters
 - **Multiplayer mode** — Co-smash monsters with friends in real time

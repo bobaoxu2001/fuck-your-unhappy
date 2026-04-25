@@ -5,6 +5,19 @@ import { AnimatePresence, motion } from "framer-motion";
 import { MonsterData } from "@/lib/types";
 import { SCENES, SceneConfig, getScene } from "@/lib/scenes";
 import { TOOLS, ToolConfig, getTool } from "@/lib/tools";
+import {
+  ATTACK_COOLDOWN,
+  ATTACKS,
+  AttackId,
+  COMBO_TIMEOUT,
+  FALLBACK_REACTIONS,
+  FLOAT_DURATION,
+  HP_MAX,
+  KO_TEXTS,
+  RAGE_DURATION,
+  RAGE_MAX,
+  VICTORY_MESSAGES,
+} from "@/lib/battle";
 import { useTTS } from "@/hooks/useTTS";
 import { VoiceToggle } from "@/components/VoiceToggle";
 
@@ -21,96 +34,6 @@ interface VentArenaProps {
   ) => void;
 }
 
-// ─── Constants ────────────────────────────────────────────────────────────────
-const HP_MAX         = 1000;
-const RAGE_MAX       = 100;
-const RAGE_DURATION  = 5000;   // ms rage mode lasts
-const COMBO_TIMEOUT  = 1000;   // ms before combo resets
-const FLOAT_DURATION = 700;    // ms floating text lives
-
-// ─── Attack definitions ───────────────────────────────────────────────────────
-// Each attack has distinct mechanics, not just different numbers.
-const ATTACKS = [
-  {
-    id: "slap" as const,
-    label: "Slap",
-    emoji: "👋",
-    // Fast, spammy, two quick floats per hit
-    minDmg: 6,
-    maxDmg: 12,
-    rageFill: 8,
-    color: "#FF6B6B",
-    floatColor: "#FF6B6B",
-    // Two pools — pick 2 at once for double-text feel
-    texts: ["SMACK!", "WHAP!", "THWACK!", "SLIPPER!", "CHANCLA!", "SLAP!"],
-    extraTexts: ["ow.", "hey!", "rude.", "again!", "ok ok", "!!!!"],
-    comboText: "SLAP STORM!",
-    // Monster squash: quick horizontal
-    squashAnim: { scaleX: 1.18, scaleY: 0.82, rotate: 5 } as const,
-    squashDuration: 120,
-  },
-  {
-    id: "punch" as const,
-    label: "Punch",
-    emoji: "👊",
-    // Slower, heavier, strong screen shake
-    minDmg: 10,
-    maxDmg: 18,
-    rageFill: 13,
-    color: "#7C3AED",
-    floatColor: "#7C3AED",
-    texts: ["BONK!", "CRUSH!", "POW!!", "SMASH!!", "OBLITERATE!", "K.O.!"],
-    extraTexts: [],
-    comboText: "MEGA PUNCH!",
-    // Monster squash: heavy vertical crush
-    squashAnim: { scaleX: 1.38, scaleY: 0.62, rotate: -10 } as const,
-    squashDuration: 200,
-  },
-  {
-    id: "roast" as const,
-    label: "Roast",
-    emoji: "🎤",
-    // Monster reacts with fear/shrink — mental damage style
-    minDmg: 12,
-    maxDmg: 20,
-    rageFill: 18,
-    color: "#FFD600",
-    floatColor: "#9333EA",
-    texts: ["THERAPY BILL!", "PSYCHIC DAMAGE!", "CRINGE OVERLOAD!", "EMOTIONALLY WRECKED!", "RECEIPTS SUBMITTED!", "WORD NUKE!"],
-    extraTexts: [],
-    comboText: "ROAST ROYALE!",
-    // Monster squash: fear shrink (distinct from physical hits)
-    squashAnim: { scale: 0.72, rotate: 0 } as const,
-    squashDuration: 350,
-  },
-] as const;
-
-type AttackId = typeof ATTACKS[number]["id"];
-
-// ─── Victory messages ─────────────────────────────────────────────────────────
-const VICTORY_MESSAGES: ((name: string) => string)[] = [
-  (n) => `${n} has been defeated by direct communication.`,
-  (n) => `${n} has left the building. Forever.`,
-  (n) => `${n} just got absolutely cooked. RIP.`,
-  (n) => `${n} filed for emotional bankruptcy.`,
-  (n) => `${n} has disconnected from reality.`,
-  (n) => `${n} called. You didn't pick up.`,
-  (n) => `${n} has been reported to the karma department.`,
-];
-
-// ─── Knockout exclamations ────────────────────────────────────────────────────
-const KO_TEXTS = ["💥 K.O.!!", "🏆 FINISHED!!", "☠️ DELETED!!", "💀 DESTROYED!!", "⚡ GAME OVER!!"];
-
-// ─── Fallback reactions for older monsters without the field ──────────────────
-const FALLBACK_REACTIONS = [
-  "That's not what I said!",
-  "You're too sensitive.",
-  "I was only trying to help!",
-  "Why is everyone attacking me?",
-  "That's completely unfair.",
-  "I'm literally the victim here.",
-];
-
 // ─── Floating text type ───────────────────────────────────────────────────────
 interface FloatingText {
   id: number;
@@ -120,6 +43,7 @@ interface FloatingText {
   color: string;
   big?: boolean;
   speech?: boolean;  // speech bubble style — defensive reaction
+  rotate: number;
 }
 
 interface SceneParticle {
@@ -147,6 +71,7 @@ export default function VentArena({ monster, onFinish }: VentArenaProps) {
   const [victoryPhase, setVictoryPhase] = useState<0 | 1 | 2>(0);
   const [victoryMsg, setVictoryMsg] = useState("");
   const [koText, setKoText]         = useState("");
+  const [claiming, setClaiming]     = useState(false);
 
   // ── Rage state ───────────────────────────────────────────────────────────────
   const [rage, setRage]             = useState(0);
@@ -174,6 +99,7 @@ export default function VentArena({ monster, onFinish }: VentArenaProps) {
   const isRagingRef        = useRef(false);   // sync ref for use inside callbacks
   const reactionIdxRef     = useRef(0);       // cycles through monster reactions
   const monsterHPRef       = useRef(HP_MAX);  // tracks current HP for TTS mode selection
+  const lastAttackRef      = useRef(0);
 
   // ── TTS ──────────────────────────────────────────────────────────────────────
   const { speak, stop, isSupported: ttsSupported, voiceEnabled, setVoiceEnabled } = useTTS();
@@ -194,10 +120,18 @@ export default function VentArena({ monster, onFinish }: VentArenaProps) {
       // Phase 2: overlay after animation
       setTimeout(() => {
         setVictoryPhase(2);
-        setVictoryMsg(pickRandom(VICTORY_MESSAGES)(monster.name));
+        setVictoryMsg(monster.victoryMessage || pickRandom(VICTORY_MESSAGES)(monster.name));
       }, 900);
     }
-  }, [monsterHP, victoryPhase, monster.name, stop]);
+  }, [monsterHP, victoryPhase, monster.name, monster.victoryMessage, stop]);
+
+  useEffect(() => {
+    return () => {
+      if (comboTimerRef.current) clearTimeout(comboTimerRef.current);
+      if (rageTimerRef.current) clearTimeout(rageTimerRef.current);
+      stop();
+    };
+  }, [stop]);
 
   // ─── Spawn helpers ────────────────────────────────────────────────────────────
   const spawnParticle = useCallback((scn: SceneConfig) => {
@@ -216,7 +150,7 @@ export default function VentArena({ monster, onFinish }: VentArenaProps) {
     const y = speech ? (10 + Math.random() * 20) : (-20 + Math.random() * 40);
     setFloats((f) => [
       ...f.slice(-6),
-      { id, text, x, y, color, big, speech },
+      { id, text, x, y, color, big, speech, rotate: -6 + Math.random() * 12 },
     ]);
     setTimeout(
       () => setFloats((f) => f.filter((item) => item.id !== id)),
@@ -226,7 +160,7 @@ export default function VentArena({ monster, onFinish }: VentArenaProps) {
 
   // ─── Rage mode ───────────────────────────────────────────────────────────────
   const activateRage = useCallback(() => {
-    if (isRagingRef.current) return;
+    if (isRagingRef.current || rage < RAGE_MAX) return;
     isRagingRef.current = true;
     setIsRaging(true);
     rageCountRef.current += 1;
@@ -238,21 +172,24 @@ export default function VentArena({ monster, onFinish }: VentArenaProps) {
       setIsRaging(false);
       setRage(0);
     }, RAGE_DURATION);
-  }, [spawnFloat]);
+  }, [rage, spawnFloat]);
 
   // ─── Core attack handler ─────────────────────────────────────────────────────
   const handleAttack = useCallback(
     (attackId: AttackId) => {
-      if (isOver) return;
+      const now = Date.now();
+      if (isOver || monsterHPRef.current <= 0 || now - lastAttackRef.current < ATTACK_COOLDOWN) return;
+      lastAttackRef.current = now;
 
       const attack = ATTACKS.find((a) => a.id === attackId)!;
       const base = randInt(attack.minDmg, attack.maxDmg);
       const damage = isRagingRef.current ? base * 2 : base;
+      const appliedDamage = Math.min(damage, monsterHPRef.current);
 
       // Track stats
       hitCountRef.current += 1;
-      totalDamageRef.current += damage;
-      if (damage > maxSingleHitRef.current) maxSingleHitRef.current = damage;
+      totalDamageRef.current += appliedDamage;
+      if (appliedDamage > maxSingleHitRef.current) maxSingleHitRef.current = appliedDamage;
 
       setHits((h) => h + 1);
 
@@ -311,24 +248,38 @@ export default function VentArena({ monster, onFinish }: VentArenaProps) {
       if (!isRagingRef.current) {
         setRage((r) => {
           const next = Math.min(RAGE_MAX, r + attack.rageFill);
-          if (next >= RAGE_MAX) activateRage();
-          return next >= RAGE_MAX ? RAGE_MAX : next;
+          if (r < RAGE_MAX && next >= RAGE_MAX) spawnFloat("RAGE READY!", "#FF4500", true);
+          return next;
         });
       }
 
       // Reduce HP — keep ref in sync for TTS mode detection in callbacks
       setMonsterHP((hp) => {
-        const next = Math.max(0, hp - damage);
+        const next = Math.max(0, hp - appliedDamage);
         monsterHPRef.current = next;
         return next;
       });
     },
-    [isOver, sceneId, taunts.length, monster.reactions, spawnFloat, spawnParticle, activateRage, speak],
+    [isOver, sceneId, taunts.length, monster.reactions, spawnFloat, spawnParticle, speak],
   );
 
   const handleTap = useCallback(() => {
     handleAttack(pickRandom(ATTACKS).id);
   }, [handleAttack]);
+
+  const finishBattle = useCallback(() => {
+    if (claiming) return;
+    setClaiming(true);
+    onFinish(
+      hitCountRef.current,
+      bestComboRef.current,
+      sceneId,
+      toolId,
+      totalDamageRef.current,
+      maxSingleHitRef.current,
+      rageCountRef.current,
+    );
+  }, [claiming, onFinish, sceneId, toolId]);
 
   // ─── Scene flavor text ───────────────────────────────────────────────────────
   const [flavorText, setFlavorText] = useState(() => pickRandom(scene.flavorTexts));
@@ -361,7 +312,14 @@ export default function VentArena({ monster, onFinish }: VentArenaProps) {
 
   // ─── Render ───────────────────────────────────────────────────────────────────
   return (
-    <div className="flex flex-col items-center gap-1.5 min-[380px]:gap-2 w-full max-w-sm mx-auto px-3">
+    <div className="flex flex-col items-center gap-2 w-full max-w-2xl mx-auto px-1 md:gap-3">
+
+      <div className="w-full rounded-[1.5rem] bg-white/85 px-4 py-3 text-center shadow-sm ring-1 ring-black/5">
+        <p className="text-[10px] font-black uppercase tracking-[0.24em] text-gray-400">Battle Arena</p>
+        <p className="mt-1 text-sm font-bold italic leading-snug text-gray-600">
+          &ldquo;{monster.battleIntro}&rdquo;
+        </p>
+      </div>
 
       {/* ── SCENE TABS ─────────────────────────────────────────────────────── */}
       <div className="w-full flex items-center gap-1.5 bg-white/80 rounded-2xl p-1 shadow-sm border border-gray-100">
@@ -429,7 +387,7 @@ export default function VentArena({ monster, onFinish }: VentArenaProps) {
                 animate={{ opacity: 1 }}
                 className="text-xs font-black uppercase tracking-widest text-gray-400"
               >
-                Rage Meter
+                Rage Meter {rage >= RAGE_MAX ? "Ready" : ""}
               </motion.span>
             )}
           </AnimatePresence>
@@ -483,7 +441,7 @@ export default function VentArena({ monster, onFinish }: VentArenaProps) {
       {/* ── MONSTER ARENA ──────────────────────────────────────────────────── */}
       <motion.div
         className={`relative flex items-center justify-center w-full rounded-3xl transition-colors duration-500 ${scene.bgClass}`}
-        style={{ height: "clamp(120px, 25vh, 224px)" }}
+        style={{ height: "clamp(180px, 34vh, 320px)" }}
         animate={isRaging ? { boxShadow: ["0 0 0px #FF450000", "0 0 18px #FF4500aa", "0 0 6px #FF450055"] } : { boxShadow: "0 0 0px #00000000" }}
         transition={isRaging ? { repeat: Infinity, duration: 0.6 } : {}}
       >
@@ -547,7 +505,7 @@ export default function VentArena({ monster, onFinish }: VentArenaProps) {
                     backgroundColor: f.color,
                     color: f.color === "#FFD600" ? "#000" : "#fff",
                     fontSize: f.big ? "0.9rem" : "0.75rem",
-                    ["--sticker-rotate" as string]: `${-6 + Math.random() * 12}deg`,
+                    ["--sticker-rotate" as string]: `${f.rotate}deg`,
                   }}
                 >
                   {f.text}
@@ -562,7 +520,7 @@ export default function VentArena({ monster, onFinish }: VentArenaProps) {
           onClick={handleTap}
           animate={monsterAnimate}
           transition={monsterTransition}
-          className="text-8xl select-none cursor-pointer transition-none drop-shadow-lg z-10"
+          className="text-8xl select-none cursor-pointer transition-none drop-shadow-lg z-10 md:text-9xl"
           disabled={isOver}
         >
           {monster.emoji}
@@ -663,7 +621,7 @@ export default function VentArena({ monster, onFinish }: VentArenaProps) {
                 transition={{ type: "spring", stiffness: 400, damping: 10, delay: 0.05 }}
                 className="text-4xl"
               >
-                💀
+                ✨
               </motion.div>
               <motion.p
                 initial={{ opacity: 0, y: 6 }}
@@ -759,14 +717,14 @@ export default function VentArena({ monster, onFinish }: VentArenaProps) {
       </div>
 
       {/* ── ATTACK BUTTONS ─────────────────────────────────────────────────── */}
-      <div className="w-full grid grid-cols-3 gap-2">
+      <div className="w-full grid grid-cols-3 gap-2 md:gap-3">
         {ATTACKS.map((attack) => (
           <motion.button
             key={attack.id}
             whileTap={{ scale: 0.88 }}
             onClick={() => handleAttack(attack.id)}
             disabled={isOver}
-            className="flex flex-col items-center justify-center gap-0.5 py-2.5 rounded-2xl font-black uppercase text-[11px] tracking-wide shadow-md disabled:opacity-40 transition-all"
+            className="flex flex-col items-center justify-center gap-0.5 py-3 rounded-2xl font-black uppercase text-[11px] tracking-wide shadow-md disabled:opacity-40 transition-all md:py-4 md:text-sm"
             style={{
               backgroundColor: isRaging ? "#FF4500" : attack.color,
               color: attack.color === "#FFD600" && !isRaging ? "#000" : "#fff",
@@ -775,9 +733,19 @@ export default function VentArena({ monster, onFinish }: VentArenaProps) {
           >
             <span className="text-xl leading-none">{attack.emoji}</span>
             {attack.label}
+            <span className="text-[8px] font-bold opacity-75 md:text-[10px]">{attack.detail}</span>
           </motion.button>
         ))}
       </div>
+
+      <motion.button
+        whileTap={{ scale: rage >= RAGE_MAX && !isOver ? 0.95 : 1 }}
+        onClick={activateRage}
+        disabled={rage < RAGE_MAX || isRaging || isOver}
+        className="w-full rounded-2xl border-2 border-orange-200 bg-orange-50 py-3 text-sm font-black uppercase tracking-wide text-orange-600 shadow-sm transition-all enabled:bg-orange-500 enabled:text-white enabled:shadow-md disabled:opacity-55"
+      >
+        {isRaging ? "🔥 Rage Mode Active: 2x Damage" : rage >= RAGE_MAX ? "🔥 Activate Rage Mode" : "Build Rage to Unlock 2x Damage"}
+      </motion.button>
 
       {/* ── CLAIM VICTORY / SKIP ───────────────────────────────────────────── */}
       {victoryPhase === 2 ? (
@@ -786,35 +754,16 @@ export default function VentArena({ monster, onFinish }: VentArenaProps) {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.6 }}
           whileTap={{ scale: 0.95 }}
-          onClick={() =>
-            onFinish(
-              hits,
-              bestComboRef.current,
-              sceneId,
-              toolId,
-              totalDamageRef.current,
-              maxSingleHitRef.current,
-              rageCountRef.current,
-            )
-          }
-          className="w-full py-2.5 rounded-2xl bg-brand-yellow text-black text-base font-black uppercase tracking-wide shadow-md border-2 border-black/5"
+          onClick={finishBattle}
+          disabled={claiming}
+          className="w-full py-2.5 rounded-2xl bg-brand-yellow text-black text-base font-black uppercase tracking-wide shadow-md border-2 border-black/5 disabled:opacity-60"
         >
           🏆 Claim Victory
         </motion.button>
       ) : (
         <button
-          onClick={() =>
-            onFinish(
-              hits,
-              bestComboRef.current,
-              sceneId,
-              toolId,
-              totalDamageRef.current,
-              maxSingleHitRef.current,
-              rageCountRef.current,
-            )
-          }
-          disabled={victoryPhase === 1}
+          onClick={finishBattle}
+          disabled={victoryPhase === 1 || claiming}
           className="text-[11px] font-bold text-gray-400 uppercase tracking-wide py-1 disabled:opacity-0"
         >
           {hits === 0 ? "Skip" : "I'm Done 😌"}

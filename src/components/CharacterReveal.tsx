@@ -18,6 +18,7 @@ const VIBE_CONFIG: Record<string, { emoji: string; label: string; bg: string; te
   friendship: { emoji: "👥", label: "Friendship", bg: "#DCFCE7", text: "#15803D" },
   school:     { emoji: "🎓", label: "School",     bg: "#EDE9FE", text: "#6D28D9" },
   online:     { emoji: "📱", label: "Online",     bg: "#E0F2FE", text: "#0369A1" },
+  general:    { emoji: "⚡", label: "General",    bg: "#F3F4F6", text: "#374151" },
 };
 
 export default function CharacterReveal({
@@ -33,7 +34,7 @@ export default function CharacterReveal({
       initial={{ scale: 0, rotate: -180 }}
       animate={{ scale: 1, rotate: 0 }}
       transition={{ type: "spring", duration: 0.8 }}
-      className="flex flex-col items-center gap-4 w-full max-w-sm mx-auto px-3"
+      className="flex flex-col items-center gap-4 w-full max-w-2xl mx-auto px-1"
     >
       {/* Subtitle */}
       <div className="flex items-center gap-2">
@@ -47,7 +48,7 @@ export default function CharacterReveal({
       {/* Monster Card */}
       <motion.div
         whileHover={{ scale: 1.02 }}
-        className="w-full rounded-2xl p-5 text-center shadow-lg border-2 bg-white relative overflow-visible"
+        className="w-full rounded-[2rem] p-5 text-center shadow-2xl border-2 bg-white/95 relative overflow-visible md:p-7"
         style={{ borderColor: monster.color }}
       >
         {/* Color accent stripe */}
@@ -74,7 +75,7 @@ export default function CharacterReveal({
         <motion.div
           animate={{ y: [0, -6, 0] }}
           transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
-          className="text-7xl leading-none mt-2"
+          className="text-8xl leading-none mt-2 drop-shadow-lg md:text-9xl"
         >
           {monster.emoji}
         </motion.div>
@@ -94,7 +95,7 @@ export default function CharacterReveal({
 
         {/* Name */}
         <h3
-          className="text-xl font-black mt-2 uppercase tracking-wide"
+          className="text-2xl font-black mt-2 uppercase tracking-wide md:text-3xl"
           style={{ color: monster.color }}
         >
           {monster.name}
@@ -113,8 +114,12 @@ export default function CharacterReveal({
         )}
 
         {/* Description */}
-        <p className="text-gray-500 mt-2 text-sm leading-relaxed">
+        <p className="text-gray-600 mt-3 text-base font-semibold leading-relaxed">
           {monster.description}
+        </p>
+
+        <p className="mt-2 rounded-2xl bg-gray-50 px-4 py-3 text-sm font-bold italic leading-relaxed text-gray-500">
+          &ldquo;{monster.battleIntro}&rdquo;
         </p>
 
         {/* Aura */}
@@ -157,7 +162,8 @@ export default function CharacterReveal({
       <motion.button
         whileTap={{ scale: 0.95 }}
         onClick={onReady}
-        className="w-full py-4 rounded-2xl bg-brand-yellow text-black text-lg font-black uppercase tracking-wide shadow-md border-2 border-black/5"
+        disabled={loading}
+        className="w-full py-4 rounded-2xl bg-brand-yellow text-black text-lg font-black uppercase tracking-wide shadow-md border-2 border-black/5 disabled:opacity-60"
       >
         Enter Arena 👊
       </motion.button>

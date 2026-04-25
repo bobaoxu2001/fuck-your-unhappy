@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { motion } from "framer-motion";
 import { ReleaseSummaryData } from "@/lib/types";
 
@@ -40,12 +41,37 @@ function StatCard({
 }
 
 export default function ReleaseSummary({ data, onRestart }: ReleaseSummaryProps) {
+  const [shareLabel, setShareLabel] = useState("↗ Share My Victory");
+  const isVictory = data.hitCount > 0;
+  const shareText = isVictory
+    ? `I just defeated ${data.monsterName} in Fuck Your Unhappy: ${data.totalDamage ?? 0} damage, best combo x${data.bestCombo}.`
+    : `I named my stress monster ${data.monsterName} in Fuck Your Unhappy. Next round: boss fight.`;
+
+  const handleShare = async () => {
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: "Fuck Your Unhappy",
+          text: shareText,
+          url: window.location.origin,
+        });
+      } else {
+        await navigator.clipboard.writeText(`${shareText} ${window.location.origin}`);
+      }
+      setShareLabel("Copied Victory!");
+    } catch {
+      setShareLabel("Share Cancelled");
+    } finally {
+      setTimeout(() => setShareLabel("↗ Share My Victory"), 1800);
+    }
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.8 }}
       animate={{ opacity: 1, scale: 1 }}
       transition={{ type: "spring", duration: 0.6 }}
-      className="flex flex-col items-center gap-3 w-full max-w-sm mx-auto px-3 text-center"
+      className="flex flex-col items-center gap-4 w-full max-w-2xl mx-auto px-1 text-center"
     >
       {/* Headline */}
       <div className="flex flex-col items-center gap-0.5">
@@ -53,7 +79,7 @@ export default function ReleaseSummary({ data, onRestart }: ReleaseSummaryProps)
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
-          className="font-display text-5xl tracking-wider text-black leading-none"
+          className="font-display text-6xl tracking-wider text-black leading-none md:text-7xl"
         >
           {data.headline}!
         </motion.h1>
@@ -63,7 +89,7 @@ export default function ReleaseSummary({ data, onRestart }: ReleaseSummaryProps)
           transition={{ type: "spring", stiffness: 300, damping: 12, delay: 0.2 }}
           className="font-display text-3xl tracking-wider yellow-highlight leading-tight"
         >
-          EMOTIONAL VICTORY!
+          {isVictory ? "EMOTIONAL VICTORY!" : "MONSTER IDENTIFIED!"}
         </motion.span>
       </div>
 
@@ -76,7 +102,7 @@ export default function ReleaseSummary({ data, onRestart }: ReleaseSummaryProps)
       >
         <span className="text-brand-yellow">✕</span>
         <span className="text-xs font-black uppercase tracking-widest">
-          Threat Neutralized
+          {isVictory ? "Threat Neutralized" : "Ready For Round Two"}
         </span>
       </motion.div>
 
@@ -85,19 +111,19 @@ export default function ReleaseSummary({ data, onRestart }: ReleaseSummaryProps)
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.4 }}
-        className="w-full rounded-2xl bg-brand-purple-deep text-white p-5 shadow-lg"
+        className="w-full rounded-[2rem] bg-brand-purple-deep text-white p-6 shadow-2xl md:p-7"
       >
         <p className="text-sm font-semibold opacity-80 mb-1">SITUATION CRITICAL: AVERTED!</p>
         <p className="text-sm leading-relaxed opacity-90">{data.roastLine}</p>
         <div className="mt-3 text-center">
           <p className="font-display text-3xl tracking-wider text-brand-yellow leading-tight">
-            STRESS REDUCED BY {data.stressReduced}%!
+            {isVictory ? `STRESS REDUCED BY ${data.stressReduced}%!` : "STRESS MONSTER IDENTIFIED!"}
           </p>
         </div>
       </motion.div>
 
       {/* Stat Cards */}
-      <div className="w-full grid grid-cols-2 gap-3">
+      <div className="w-full grid grid-cols-2 gap-3 md:grid-cols-4">
         <StatCard
           label="Total Damage"
           value={(data.totalDamage ?? 0).toLocaleString()}
@@ -113,20 +139,23 @@ export default function ReleaseSummary({ data, onRestart }: ReleaseSummaryProps)
           delay={0.6}
         />
         <StatCard
-          label="Best Combo"
-          value={`×${data.bestCombo}`}
+          label="Turns"
+          value={String(data.hitCount)}
           color="#7C3AED"
           bgColor="#FAF5FF"
           delay={0.7}
         />
         <StatCard
-          label="Rage Activations"
-          value={data.rageActivations ? `${data.rageActivations}🔥` : "0"}
+          label="Best Combo"
+          value={`×${data.bestCombo}`}
           color="#DC2626"
           bgColor="#FEF2F2"
           delay={0.8}
         />
       </div>
+      <p className="text-[11px] font-bold uppercase tracking-widest text-gray-400">
+        Rage activations: {data.rageActivations ?? 0}🔥
+      </p>
 
       {/* Buttons */}
       <div className="w-full flex flex-col gap-2.5 mt-1">
@@ -139,10 +168,10 @@ export default function ReleaseSummary({ data, onRestart }: ReleaseSummaryProps)
         </motion.button>
         <motion.button
           whileTap={{ scale: 0.95 }}
-          onClick={() => {}}
+          onClick={handleShare}
           className="w-full py-3 rounded-full bg-white text-black text-sm font-black uppercase tracking-wider shadow-sm border border-gray-200"
         >
-          ↗ Share My Victory
+          {shareLabel}
         </motion.button>
       </div>
     </motion.div>

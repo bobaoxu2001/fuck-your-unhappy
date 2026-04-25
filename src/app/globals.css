@@ -18,6 +18,8 @@
 body {
   -webkit-tap-highlight-color: transparent;
   background: #FAF5FF;
+  min-height: 100dvh;
+  overflow-x: hidden;
 }
 
 /* Stress bar gradient */

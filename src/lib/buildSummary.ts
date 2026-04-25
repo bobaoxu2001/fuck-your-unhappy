@@ -1,23 +1,23 @@
 import { MonsterData, ReleaseSummaryData } from "./types";
 
 const ROASTS = [
-  (n: string) => `${n} didn't stand a chance against your rage.`,
-  (n: string) => `That was personal. ${n} is filing a restraining order.`,
-  (n: string) => `You hit so hard, ${n}'s therapist needs a therapist.`,
-  (n: string) => `${n} has left the chat. Permanently.`,
-  (n: string) => `${n} just ragequit existence.`,
+  (n: string) => `${n} got turned into confetti by healthy emotional processing.`,
+  (n: string) => `${n} tried to be intimidating and got bonked into a learning moment.`,
+  (n: string) => `${n}'s entire strategy collapsed under one cartoon slipper.`,
+  (n: string) => `${n} has left the chat to reconsider their brand.`,
+  (n: string) => `${n} ragequit the arena and took the bad vibes with them.`,
   (n: string) => `${n} has been reported to the HR department of karma.`,
-  (n: string) => `${n} called. They want their dignity back. You said no.`,
+  (n: string) => `${n} called. Their drama subscription has been cancelled.`,
   (n: string) => `Scientists confirm: ${n} is 100% emotionally bankrupt.`,
 ];
 
 const HEADLINES = [
-  "TARGET DESTROYED",
-  "BOSS ELIMINATED",
+  "BOSS CLEARED",
+  "BAD VIBE BONKED",
   "RAGE COMPLETE",
   "NEMESIS NEUTRALIZED",
   "EMOTIONAL VICTORY",
-  "THREAT DELETED",
+  "THREAT RELEASED",
 ];
 
 function pickRandom<T>(arr: T[]): T {
@@ -32,15 +32,31 @@ export function buildSummary(
   maxSingleHit = 0,
   rageActivations = 0,
 ): ReleaseSummaryData {
+  if (hitCount === 0) {
+    return {
+      monsterName: monster.name,
+      hitCount,
+      bestCombo,
+      stressReduced: 0,
+      headline: "RESET READY",
+      roastLine: `${monster.name} is still waiting in the arena. No shame: sometimes naming the monster is the first win.`,
+      totalDamage,
+      maxSingleHit,
+      rageActivations,
+      victoryMessage: monster.victoryMessage,
+    };
+  }
+
   return {
     monsterName: monster.name,
     hitCount,
     bestCombo,
     stressReduced: Math.min(100, Math.round(40 + hitCount * 1.5 + bestCombo * 3 + rageActivations * 8)),
     headline: pickRandom(HEADLINES),
-    roastLine: pickRandom(ROASTS)(monster.name),
+    roastLine: monster.victoryMessage || pickRandom(ROASTS)(monster.name),
     totalDamage,
     maxSingleHit,
     rageActivations,
+    victoryMessage: monster.victoryMessage,
   };
 }
