@@ -10,7 +10,7 @@ export default function BottomNav({ screen }: BottomNavProps) {
   return (
     <nav
       aria-label="Current app section"
-      className="bottom-nav fixed bottom-0 left-0 right-0 bg-white/95 z-50 flex items-end justify-around px-6 pb-5 pt-3 max-w-md mx-auto shadow-2xl backdrop-blur md:bottom-4 md:rounded-[2rem] md:border md:border-black/5"
+      className="bottom-nav pointer-events-none fixed bottom-0 left-0 right-0 bg-white/95 z-50 flex items-end justify-around px-6 pb-5 pt-3 max-w-md mx-auto shadow-2xl backdrop-blur md:bottom-4 md:rounded-[2rem] md:border md:border-black/5"
     >
       <div className="flex flex-col items-center gap-0.5 pb-0.5">
         <span className={`text-xl ${isMainFlow ? "opacity-100" : "opacity-40"}`}>
