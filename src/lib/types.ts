@@ -14,6 +14,7 @@ export interface MonsterData {
   reactions: string[];
   aura: string;        // oppressive energy e.g. "weaponized incompetence"
   vibe: "corporate" | "family" | "dating" | "friendship" | "school" | "online" | "general";
+  image?: string;
   fallback?: boolean;
 }
 

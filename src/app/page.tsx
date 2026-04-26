@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Screen, MonsterData, ReleaseSummaryData } from "@/lib/types";
-import { generateMonsterAI, rerollMonsterAI } from "@/lib/generateMonster";
+import { generateCharacterImage, generateMonsterAI, rerollMonsterAI } from "@/lib/generateMonster";
 import { buildSummary } from "@/lib/buildSummary";
 import AppHeader from "@/components/AppHeader";
 import BottomNav from "@/components/BottomNav";
@@ -21,15 +21,25 @@ export default function Home() {
   const [summary, setSummary] = useState<ReleaseSummaryData | null>(null);
   const [generating, setGenerating] = useState(false);
   const [generationError, setGenerationError] = useState("");
+  const [imageError, setImageError] = useState("");
 
   const handleVent = async (text: string) => {
     if (generating) return;
     setUserInput(text);
     setGenerating(true);
     setGenerationError("");
+    setImageError("");
     try {
-      const m = await generateMonsterAI(text);
-      setMonster(m);
+      const monsterResult = await generateMonsterAI(text);
+
+      try {
+        const image = await generateCharacterImage(text);
+        setMonster({ ...monsterResult, image });
+      } catch {
+        setMonster(monsterResult);
+        setImageError("Portrait generator missed this round, so we loaded the classic emoji enemy.");
+      }
+
       setScreen("reveal");
     } catch {
       setGenerationError("The monster portal jammed. Try a shorter vent or summon again.");
@@ -41,9 +51,16 @@ export default function Home() {
   const handleReroll = async () => {
     if (!monster || generating) return;
     setGenerating(true);
+    setImageError("");
     try {
       const m = await rerollMonsterAI(userInput, monster);
-      setMonster(m);
+      try {
+        const image = await generateCharacterImage(`${userInput}. Enemy concept: ${m.name}, ${m.archetype}, ${m.appearance}`);
+        setMonster({ ...m, image });
+      } catch {
+        setMonster(m);
+        setImageError("Portrait generator missed this reroll, so we kept the emoji fallback.");
+      }
     } finally {
       setGenerating(false);
     }
@@ -72,6 +89,7 @@ export default function Home() {
     setMonster(null);
     setSummary(null);
     setGenerationError("");
+    setImageError("");
     setScreen("input");
   };
 
@@ -97,6 +115,7 @@ export default function Home() {
                   onReady={() => setScreen("arena")}
                   onReroll={handleReroll}
                   loading={generating}
+                  imageError={imageError}
                 />
               </motion.div>
             )}

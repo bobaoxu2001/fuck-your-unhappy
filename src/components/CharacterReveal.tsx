@@ -8,6 +8,7 @@ interface CharacterRevealProps {
   onReady: () => void;
   onReroll: () => void;
   loading?: boolean;
+  imageError?: string;
 }
 
 // Visual config per vibe context
@@ -26,6 +27,7 @@ export default function CharacterReveal({
   onReady,
   onReroll,
   loading,
+  imageError,
 }: CharacterRevealProps) {
   const vibe = monster.vibe ? VIBE_CONFIG[monster.vibe.toLowerCase()] : null;
 
@@ -71,14 +73,36 @@ export default function CharacterReveal({
           </motion.div>
         )}
 
-        {/* Emoji */}
-        <motion.div
-          animate={{ y: [0, -6, 0] }}
-          transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
-          className="text-8xl leading-none mt-2 drop-shadow-lg md:text-9xl"
-        >
-          {monster.emoji}
-        </motion.div>
+        {/* Generated portrait with emoji fallback */}
+        {monster.image ? (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.92 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ type: "spring", stiffness: 260, damping: 20 }}
+            className="mx-auto mt-3 aspect-square w-full max-w-[280px] overflow-hidden rounded-[1.5rem] bg-gray-50 shadow-xl ring-4 ring-white"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={monster.image}
+              alt={`${monster.name} fictional stress monster portrait`}
+              className="h-full w-full object-cover"
+            />
+          </motion.div>
+        ) : (
+          <motion.div
+            animate={{ y: [0, -6, 0] }}
+            transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
+            className="text-8xl leading-none mt-2 drop-shadow-lg md:text-9xl"
+          >
+            {monster.emoji}
+          </motion.div>
+        )}
+
+        {imageError && (
+          <p className="mx-auto mt-3 max-w-sm rounded-full bg-amber-50 px-3 py-1.5 text-[11px] font-bold text-amber-700">
+            {imageError}
+          </p>
+        )}
 
         {/* Archetype badge */}
         {monster.archetype && (
