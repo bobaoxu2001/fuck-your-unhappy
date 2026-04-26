@@ -96,7 +96,7 @@ export async function POST(req: NextRequest) {
       model: IMAGE_MODEL,
       prompt: buildCharacterPrompt(description),
       size: "1024x1024",
-      quality: "medium",
+      quality: "low",
     });
 
     const imageBase64 = result.data?.[0]?.b64_json;
