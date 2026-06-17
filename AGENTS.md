@@ -18,4 +18,4 @@ This is a single Next.js 16 (App Router) / React 19 / TypeScript app — "Fuck Y
 
 ### Gotchas
 - `.claude/start-dev.sh` is hardcoded to a macOS path and a specific nvm node binary — do **not** use it on this Linux VM; run `npm run dev` directly.
-- Known pre-existing bug (unrelated to env setup): after defeating a monster, the Release Summary screen can fail to render due to a Framer Motion spring/inertia animation error ("Only two keyframes currently supported... Trying to animate 0,1,31").
+- Framer Motion `spring`/`inertia` transitions only support **two** keyframes. Animating a 3+ keyframe array (e.g. `scale: [0, 1.3, 1]`) under a spring throws a runtime error and crashes the screen. Use a tween (`duration`) for multi-keyframe arrays, or animate to a single target and let the spring overshoot.
