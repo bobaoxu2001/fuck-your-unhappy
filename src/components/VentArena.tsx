@@ -617,7 +617,7 @@ export default function VentArena({ monster, onFinish }: VentArenaProps) {
             >
               <motion.div
                 initial={{ scale: 0 }}
-                animate={{ scale: [0, 1.3, 1] }}
+                animate={{ scale: 1 }}
                 transition={{ type: "spring", stiffness: 400, damping: 10, delay: 0.05 }}
                 className="text-4xl"
               >
