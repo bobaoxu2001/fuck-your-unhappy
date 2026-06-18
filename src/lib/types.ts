@@ -33,4 +33,20 @@ export interface ReleaseSummaryData {
   victoryMessage?: string;
 }
 
-export type Screen = "input" | "reveal" | "arena" | "summary";
+export type Screen = "input" | "reveal" | "arena" | "cooldown" | "summary";
+
+export interface BattleRecord {
+  id: string;
+  date: number;
+  monsterName: string;
+  monsterEmoji: string;
+  monsterColor: string;
+  vibe: string;
+  archetype: string;
+  totalDamage: number;
+  hitCount: number;
+  bestCombo: number;
+  rageActivations: number;
+  stressBefore: number;
+  stressAfter: number;
+}

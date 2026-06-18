@@ -19,7 +19,9 @@ import {
   VICTORY_MESSAGES,
 } from "@/lib/battle";
 import { useTTS } from "@/hooks/useTTS";
+import { useSound } from "@/hooks/useSound";
 import { VoiceToggle } from "@/components/VoiceToggle";
+import { SoundToggle } from "@/components/SoundToggle";
 
 interface VentArenaProps {
   monster: MonsterData;
@@ -104,6 +106,9 @@ export default function VentArena({ monster, onFinish }: VentArenaProps) {
   // ── TTS ──────────────────────────────────────────────────────────────────────
   const { speak, stop, isSupported: ttsSupported, voiceEnabled, setVoiceEnabled } = useTTS();
 
+  // ── Sound FX + haptics ─────────────────────────────────────────────────────
+  const { play: playSound, soundEnabled, setSoundEnabled, isSupported: soundSupported } = useSound();
+
   const scene: SceneConfig = getScene(sceneId);
   const tool: ToolConfig   = getTool(toolId);
   const taunts             = monster.taunts ?? [];
@@ -114,6 +119,7 @@ export default function VentArena({ monster, onFinish }: VentArenaProps) {
   useEffect(() => {
     if (monsterHP <= 0 && victoryPhase === 0) {
       stop(); // silence any mid-sentence reaction
+      playSound("victory");
       // Phase 1: KO moment
       setVictoryPhase(1);
       setKoText(pickRandom(KO_TEXTS));
@@ -123,7 +129,7 @@ export default function VentArena({ monster, onFinish }: VentArenaProps) {
         setVictoryMsg(monster.victoryMessage || pickRandom(VICTORY_MESSAGES)(monster.name));
       }, 900);
     }
-  }, [monsterHP, victoryPhase, monster.name, monster.victoryMessage, stop]);
+  }, [monsterHP, victoryPhase, monster.name, monster.victoryMessage, stop, playSound]);
 
   useEffect(() => {
     return () => {
@@ -164,6 +170,7 @@ export default function VentArena({ monster, onFinish }: VentArenaProps) {
     isRagingRef.current = true;
     setIsRaging(true);
     rageCountRef.current += 1;
+    playSound("rage");
     spawnFloat("🔥 RAGE MODE!", "#FF4500", true);
 
     if (rageTimerRef.current) clearTimeout(rageTimerRef.current);
@@ -172,7 +179,7 @@ export default function VentArena({ monster, onFinish }: VentArenaProps) {
       setIsRaging(false);
       setRage(0);
     }, RAGE_DURATION);
-  }, [rage, spawnFloat]);
+  }, [rage, spawnFloat, playSound]);
 
   // ─── Core attack handler ─────────────────────────────────────────────────────
   const handleAttack = useCallback(
@@ -182,6 +189,7 @@ export default function VentArena({ monster, onFinish }: VentArenaProps) {
       lastAttackRef.current = now;
 
       const attack = ATTACKS.find((a) => a.id === attackId)!;
+      playSound(attackId);
       const base = randInt(attack.minDmg, attack.maxDmg);
       const damage = isRagingRef.current ? base * 2 : base;
       const appliedDamage = Math.min(damage, monsterHPRef.current);
@@ -260,7 +268,7 @@ export default function VentArena({ monster, onFinish }: VentArenaProps) {
         return next;
       });
     },
-    [isOver, sceneId, taunts.length, monster.reactions, spawnFloat, spawnParticle, speak],
+    [isOver, sceneId, taunts.length, monster.reactions, spawnFloat, spawnParticle, speak, playSound],
   );
 
   const handleTap = useCallback(() => {
@@ -389,6 +397,10 @@ export default function VentArena({ monster, onFinish }: VentArenaProps) {
             Monster HP
           </span>
           <div className="flex items-center gap-2">
+            {/* SFX toggle — only rendered when Web Audio is supported */}
+            {soundSupported && (
+              <SoundToggle enabled={soundEnabled} onToggle={setSoundEnabled} />
+            )}
             {/* Voice toggle — only rendered when browser supports TTS */}
             {ttsSupported && (
               <VoiceToggle enabled={voiceEnabled} onToggle={setVoiceEnabled} />

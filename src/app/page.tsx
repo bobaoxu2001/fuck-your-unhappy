@@ -5,12 +5,15 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Screen, MonsterData, ReleaseSummaryData } from "@/lib/types";
 import { generateCharacterImage, generateMonsterAI, rerollMonsterAI } from "@/lib/generateMonster";
 import { buildSummary } from "@/lib/buildSummary";
+import { saveBattle } from "@/lib/history";
 import AppHeader from "@/components/AppHeader";
 import BottomNav from "@/components/BottomNav";
 import VentInput from "@/components/VentInput";
 import CharacterReveal from "@/components/CharacterReveal";
 import VentArena from "@/components/VentArena";
+import Cooldown from "@/components/Cooldown";
 import ReleaseSummary from "@/components/ReleaseSummary";
+import HistoryGallery, { GalleryTab } from "@/components/HistoryGallery";
 
 const EXIT_ANIMATION = { opacity: 0, x: -50 };
 
@@ -22,10 +25,14 @@ export default function Home() {
   const [generating, setGenerating] = useState(false);
   const [generationError, setGenerationError] = useState("");
   const [imageError, setImageError] = useState("");
+  const [stressBefore, setStressBefore] = useState(60);
+  const [stressAfter, setStressAfter] = useState(60);
+  const [galleryTab, setGalleryTab] = useState<GalleryTab | null>(null);
 
-  const handleVent = async (text: string) => {
+  const handleVent = async (text: string, stress: number) => {
     if (generating) return;
     setUserInput(text);
+    setStressBefore(stress);
     setGenerating(true);
     setGenerationError("");
     setImageError("");
@@ -75,13 +82,29 @@ export default function Home() {
     maxSingleHit?: number,
     rageActivations?: number,
   ) => {
-    if (monster) {
-      const data = buildSummary(monster, hitCount, bestCombo, totalDamage, maxSingleHit, rageActivations);
-      data.sceneId = sceneId;
-      data.toolId = toolId;
-      setSummary(data);
+    if (!monster) return;
+    const data = buildSummary(monster, hitCount, bestCombo, totalDamage, maxSingleHit, rageActivations);
+    data.sceneId = sceneId;
+    data.toolId = toolId;
+    setSummary(data);
+
+    if (hitCount > 0) {
+      // Wind down before celebrating — convert catharsis into calm.
+      setScreen("cooldown");
+    } else {
+      // Nothing to recover from; skip the breathing step.
+      setStressAfter(stressBefore);
+      saveBattle(monster, data, stressBefore, stressBefore);
       setScreen("summary");
     }
+  };
+
+  const handleCooldownDone = (after: number) => {
+    setStressAfter(after);
+    if (monster && summary) {
+      saveBattle(monster, summary, stressBefore, after);
+    }
+    setScreen("summary");
   };
 
   const handleRestart = () => {
@@ -124,16 +147,32 @@ export default function Home() {
                 <VentArena monster={monster} onFinish={handleFinish} />
               </motion.div>
             )}
+            {screen === "cooldown" && (
+              <motion.div key="cooldown" exit={EXIT_ANIMATION} className="w-full">
+                <Cooldown stressBefore={stressBefore} onComplete={handleCooldownDone} />
+              </motion.div>
+            )}
             {screen === "summary" && summary && (
               <motion.div key="summary" exit={EXIT_ANIMATION} className="w-full">
-                <ReleaseSummary data={summary} onRestart={handleRestart} />
+                <ReleaseSummary
+                  data={summary}
+                  onRestart={handleRestart}
+                  stressBefore={stressBefore}
+                  stressAfter={stressAfter}
+                />
               </motion.div>
             )}
           </AnimatePresence>
         </main>
 
-        <BottomNav screen={screen} />
+        <BottomNav screen={screen} onOpenGallery={setGalleryTab} />
       </div>
+
+      <AnimatePresence>
+        {galleryTab && (
+          <HistoryGallery initialTab={galleryTab} onClose={() => setGalleryTab(null)} />
+        )}
+      </AnimatePresence>
     </div>
   );
 }
