@@ -162,14 +162,14 @@ export default function ReleaseSummary({ data, onRestart }: ReleaseSummaryProps)
         <motion.button
           whileTap={{ scale: 0.95 }}
           onClick={onRestart}
-          className="w-full py-3.5 rounded-full generate-btn text-black text-lg font-black uppercase tracking-wide shadow-[0_4px_0_0_rgba(0,0,0,0.10)]"
+          className="btn-3d w-full py-3.5 rounded-full generate-btn text-lg font-black uppercase tracking-wide"
         >
           Bash Another Boss
         </motion.button>
         <motion.button
           whileTap={{ scale: 0.95 }}
           onClick={handleShare}
-          className="w-full py-3 rounded-full bg-white text-black text-sm font-black uppercase tracking-wider shadow-sm border border-gray-200"
+          className="btn-3d w-full py-3 rounded-full bg-white text-black text-sm font-black uppercase tracking-wider shadow-sm border border-gray-200 hover:border-gray-300"
         >
           {shareLabel}
         </motion.button>

@@ -90,7 +90,7 @@ export default function VentInput({ onSubmit, loading, error }: VentInputProps) 
             <p className="text-[11px] font-semibold text-brand-red">
               {showEmpty ? "Give the monster portal something to work with." : error}
             </p>
-            <span className="text-[10px] font-bold text-gray-300">
+            <span className="text-[10px] font-bold tabular-nums text-gray-400">
               {text.length}/{MAX_INPUT_LENGTH}
             </span>
           </div>
@@ -99,7 +99,7 @@ export default function VentInput({ onSubmit, loading, error }: VentInputProps) 
           whileTap={{ scale: 0.96 }}
           onClick={handleSubmit}
           disabled={!text.trim() || loading}
-          className="w-full py-4 rounded-full generate-btn text-black text-lg font-black uppercase tracking-wide shadow-[0_5px_0_0_rgba(0,0,0,0.12)] disabled:opacity-40 transition-all"
+          className="btn-3d w-full py-4 rounded-full generate-btn text-lg font-black uppercase tracking-wide disabled:opacity-40"
         >
           {loading ? "Summoning your stress monster..." : "Generate My Enemy"}
         </motion.button>
@@ -110,12 +110,12 @@ export default function VentInput({ onSubmit, loading, error }: VentInputProps) 
             </span>
             <span className="text-base font-black text-brand-purple">{INITIAL_STRESS}%</span>
           </div>
-          <div className="w-full h-2 rounded-full bg-gray-200 overflow-hidden">
+          <div className="meter-track w-full h-2 rounded-full overflow-hidden">
             <motion.div
               initial={{ width: 0 }}
               animate={{ width: `${INITIAL_STRESS}%` }}
               transition={{ duration: 0.8, ease: "easeOut" }}
-              className="h-full rounded-full stress-bar-gradient"
+              className="meter-fill h-full rounded-full stress-bar-gradient"
             />
           </div>
         </div>

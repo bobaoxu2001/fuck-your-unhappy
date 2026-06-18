@@ -399,11 +399,11 @@ export default function VentArena({ monster, onFinish }: VentArenaProps) {
             </span>
           </div>
         </div>
-        <div className="w-full h-2.5 rounded-full bg-gray-200 overflow-hidden">
+        <div className="meter-track w-full h-2.5 rounded-full overflow-hidden">
           <motion.div
             animate={{ width: `${hpPct}%` }}
             transition={{ duration: 0.25 }}
-            className="h-full rounded-full"
+            className="meter-fill h-full rounded-full"
             style={{ backgroundColor: hpColor }}
           />
         </div>
@@ -444,11 +444,11 @@ export default function VentArena({ monster, onFinish }: VentArenaProps) {
             </motion.span>
           )}
         </div>
-        <div className="w-full h-1.5 rounded-full bg-gray-200 overflow-hidden">
+        <div className="meter-track w-full h-1.5 rounded-full overflow-hidden">
           <motion.div
             animate={{ width: `${ragePct}%` }}
             transition={{ duration: 0.1 }}
-            className={`h-full rounded-full transition-colors duration-300 ${
+            className={`meter-fill h-full rounded-full transition-colors duration-300 ${
               isRaging ? "bg-orange-500" : ragePct > 70 ? "bg-orange-400" : "bg-orange-300"
             }`}
           />
@@ -769,7 +769,7 @@ export default function VentArena({ monster, onFinish }: VentArenaProps) {
             disabled={isOver}
             aria-label={`${attack.label} attack (${attack.detail}). Keyboard ${index + 1} or ${attack.label.charAt(0)}`}
             aria-keyshortcuts={`${index + 1} ${attack.label.charAt(0)}`}
-            className="relative flex flex-col items-center justify-center gap-0.5 py-3 rounded-2xl font-black uppercase text-[11px] tracking-wide shadow-md disabled:opacity-40 transition-all md:py-4 md:text-sm"
+            className="btn-3d relative flex flex-col items-center justify-center gap-0.5 py-3 rounded-2xl font-black uppercase text-[11px] tracking-wide shadow-md disabled:opacity-40 md:py-4 md:text-sm"
             style={{
               backgroundColor: isRaging ? "#FF4500" : attack.color,
               color: attack.color === "#FFD600" && !isRaging ? "#000" : "#fff",
@@ -792,7 +792,7 @@ export default function VentArena({ monster, onFinish }: VentArenaProps) {
         disabled={rage < RAGE_MAX || isRaging || isOver}
         aria-label="Activate Rage Mode for double damage. Keyboard Space"
         aria-keyshortcuts="Space"
-        className="w-full rounded-2xl border-2 border-orange-200 bg-orange-50 py-3 text-sm font-black uppercase tracking-wide text-orange-600 shadow-sm transition-all enabled:bg-orange-500 enabled:text-white enabled:shadow-md disabled:opacity-55"
+        className="btn-3d w-full rounded-2xl border-2 border-orange-200 bg-orange-50 py-3 text-sm font-black uppercase tracking-wide text-orange-600 shadow-sm enabled:bg-orange-500 enabled:text-white enabled:shadow-md disabled:opacity-55"
       >
         {isRaging ? "🔥 Rage Mode Active: 2x Damage" : rage >= RAGE_MAX ? "🔥 Activate Rage Mode" : "Build Rage to Unlock 2x Damage"}
       </motion.button>
@@ -811,7 +811,7 @@ export default function VentArena({ monster, onFinish }: VentArenaProps) {
           whileTap={{ scale: 0.95 }}
           onClick={finishBattle}
           disabled={claiming}
-          className="w-full py-2.5 rounded-2xl bg-brand-yellow text-black text-base font-black uppercase tracking-wide shadow-md border-2 border-black/5 disabled:opacity-60"
+          className="btn-3d btn-yellow w-full py-2.5 rounded-2xl text-black text-base font-black uppercase tracking-wide disabled:opacity-60"
         >
           🏆 Claim Victory
         </motion.button>
