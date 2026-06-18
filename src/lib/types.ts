@@ -49,4 +49,6 @@ export interface BattleRecord {
   rageActivations: number;
   stressBefore: number;
   stressAfter: number;
+  /** Full monster snapshot so the battle can be replayed ("rematch"). */
+  monster?: MonsterData;
 }

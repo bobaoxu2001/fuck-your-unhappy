@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import StressSlider from "@/components/StressSlider";
+import { useSound } from "@/hooks/useSound";
 
 interface CooldownProps {
   stressBefore: number;
@@ -23,6 +24,29 @@ export default function Cooldown({ stressBefore, onComplete }: CooldownProps) {
   const [cycle, setCycle] = useState(1);
   const [after, setAfter] = useState(() => Math.max(0, stressBefore - 30));
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const { startAmbient, stopAmbient, isSupported: soundSupported } = useSound();
+  const [noiseOn, setNoiseOn] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return localStorage.getItem("fyu-noise-enabled") === "true";
+  });
+
+  // Auto-start ambience if the user previously enabled it (a prior battle tap
+  // already unlocked audio, so this won't be blocked by autoplay policy).
+  useEffect(() => {
+    if (noiseOn) startAmbient();
+    return () => stopAmbient();
+  }, [noiseOn, startAmbient, stopAmbient]);
+
+  const toggleNoise = () => {
+    setNoiseOn((prev) => {
+      const next = !prev;
+      if (typeof window !== "undefined") {
+        localStorage.setItem("fyu-noise-enabled", String(next));
+      }
+      return next;
+    });
+  };
 
   useEffect(() => {
     if (stage !== "breathing") return;
@@ -113,12 +137,28 @@ export default function Cooldown({ stressBefore, onComplete }: CooldownProps) {
               </span>
             </div>
 
-            <button
-              onClick={() => setStage("reflect")}
-              className="text-[11px] font-bold uppercase tracking-widest text-gray-400 underline-offset-4 hover:text-gray-600 hover:underline"
-            >
-              Skip breathing
-            </button>
+            <div className="flex items-center gap-3">
+              {soundSupported && (
+                <button
+                  onClick={toggleNoise}
+                  aria-pressed={noiseOn}
+                  className={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-black uppercase tracking-widest transition-all ${
+                    noiseOn
+                      ? "border-indigo-200 bg-indigo-50 text-indigo-600"
+                      : "border-gray-200 bg-white text-gray-400 hover:text-gray-600"
+                  }`}
+                >
+                  <span>{noiseOn ? "🌊" : "🔈"}</span>
+                  {noiseOn ? "White noise on" : "White noise"}
+                </button>
+              )}
+              <button
+                onClick={() => setStage("reflect")}
+                className="text-[11px] font-bold uppercase tracking-widest text-gray-400 underline-offset-4 hover:text-gray-600 hover:underline"
+              >
+                Skip breathing
+              </button>
+            </div>
           </motion.div>
         ) : (
           <motion.div

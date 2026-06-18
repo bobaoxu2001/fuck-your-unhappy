@@ -11,6 +11,10 @@ export interface UseSoundReturn {
   soundEnabled: boolean;
   /** Toggle SFX on/off and persist. */
   setSoundEnabled: (v: boolean) => void;
+  /** Start gentle looping brown-noise ambience (e.g. during breathing). */
+  startAmbient: () => void;
+  /** Fade out + stop the ambient noise. */
+  stopAmbient: () => void;
   /** True when the Web Audio API is available. */
   isSupported: boolean;
 }
@@ -158,6 +162,61 @@ export function useSound(): UseSoundReturn {
     [getCtx],
   );
 
+  const ambientRef = useRef<{ src: AudioBufferSourceNode; gain: GainNode } | null>(null);
+
+  const startAmbient = useCallback(() => {
+    const ctx = getCtx();
+    if (!ctx || ambientRef.current) return;
+
+    const dur = 3;
+    const frames = Math.floor(ctx.sampleRate * dur);
+    const buffer = ctx.createBuffer(1, frames, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    // Brown noise: integrate white noise → softer, calmer than pure white noise.
+    let last = 0;
+    for (let i = 0; i < frames; i++) {
+      const white = Math.random() * 2 - 1;
+      last = (last + 0.02 * white) / 1.02;
+      data[i] = last * 3.2;
+    }
+
+    const src = ctx.createBufferSource();
+    src.buffer = buffer;
+    src.loop = true;
+    const filter = ctx.createBiquadFilter();
+    filter.type = "lowpass";
+    filter.frequency.value = 700;
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+    gain.gain.linearRampToValueAtTime(0.12, ctx.currentTime + 1.4);
+
+    src.connect(filter);
+    filter.connect(gain);
+    gain.connect(ctx.destination);
+    src.start();
+
+    ambientRef.current = { src, gain };
+  }, [getCtx]);
+
+  const stopAmbient = useCallback(() => {
+    const current = ambientRef.current;
+    if (!current) return;
+    ambientRef.current = null;
+    const ctx = ctxRef.current;
+    if (ctx) {
+      current.gain.gain.cancelScheduledValues(ctx.currentTime);
+      current.gain.gain.setValueAtTime(current.gain.gain.value, ctx.currentTime);
+      current.gain.gain.linearRampToValueAtTime(0.0001, ctx.currentTime + 0.5);
+    }
+    setTimeout(() => {
+      try {
+        current.src.stop();
+      } catch {
+        /* already stopped */
+      }
+    }, 600);
+  }, []);
+
   const setSoundEnabled = useCallback((v: boolean) => {
     enabledRef.current = v;
     setSoundEnabledState(v);
@@ -166,5 +225,5 @@ export function useSound(): UseSoundReturn {
     }
   }, []);
 
-  return { play, soundEnabled, setSoundEnabled, isSupported };
+  return { play, soundEnabled, setSoundEnabled, startAmbient, stopAmbient, isSupported };
 }

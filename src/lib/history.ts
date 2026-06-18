@@ -35,6 +35,9 @@ export function saveBattle(
     rageActivations: summary.rageActivations ?? 0,
     stressBefore,
     stressAfter,
+    // Drop the (potentially large base64) portrait to stay within storage quota;
+    // a rematch falls back to the emoji enemy.
+    monster: { ...monster, image: undefined },
   };
 
   const next = [record, ...getRecords()].slice(0, MAX_RECORDS);
@@ -59,6 +62,37 @@ export interface Aggregate {
   totalDamage: number;
   totalStressReleased: number;
   monstersDefeated: number;
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function startOfLocalDay(ts: number): number {
+  const d = new Date(ts);
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
+}
+
+/**
+ * Current daily streak: number of consecutive calendar days (ending today,
+ * or yesterday if you haven't used it yet today) with at least one session.
+ */
+export function computeStreak(records: BattleRecord[]): number {
+  if (records.length === 0) return 0;
+  const days = new Set(records.map((r) => startOfLocalDay(r.date)));
+  const today = startOfLocalDay(Date.now());
+
+  let cursor = today;
+  if (!days.has(cursor)) {
+    cursor -= DAY_MS; // grace: streak stays alive until the day ends
+    if (!days.has(cursor)) return 0;
+  }
+
+  let streak = 0;
+  while (days.has(cursor)) {
+    streak += 1;
+    cursor -= DAY_MS;
+  }
+  return streak;
 }
 
 export function aggregate(records: BattleRecord[]): Aggregate {

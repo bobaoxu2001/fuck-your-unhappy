@@ -2,14 +2,17 @@
 
 import { useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { BattleRecord } from "@/lib/types";
-import { aggregate, clearRecords, getRecords } from "@/lib/history";
+import { BattleRecord, MonsterData } from "@/lib/types";
+import { aggregate, computeStreak } from "@/lib/history";
 
 export type GalleryTab = "monsters" | "history";
 
 interface HistoryGalleryProps {
   initialTab: GalleryTab;
+  records: BattleRecord[];
   onClose: () => void;
+  onClear: () => void;
+  onRematch: (monster: MonsterData) => void;
 }
 
 function timeAgo(ts: number) {
@@ -36,15 +39,16 @@ function StatTile({ label, value, accent }: { label: string; value: string; acce
   );
 }
 
-export default function HistoryGallery({ initialTab, onClose }: HistoryGalleryProps) {
+export default function HistoryGallery({
+  initialTab,
+  records,
+  onClose,
+  onClear,
+  onRematch,
+}: HistoryGalleryProps) {
   const [tab, setTab] = useState<GalleryTab>(initialTab);
-  const [records, setRecords] = useState<BattleRecord[]>(() => getRecords());
   const agg = useMemo(() => aggregate(records), [records]);
-
-  const handleClear = () => {
-    clearRecords();
-    setRecords([]);
-  };
+  const streak = useMemo(() => computeStreak(records), [records]);
 
   return (
     <AnimatePresence>
@@ -115,15 +119,24 @@ export default function HistoryGallery({ initialTab, onClose }: HistoryGalleryPr
                     <span className="text-[9px] font-bold uppercase tracking-widest text-gray-400">
                       {r.hitCount > 0 ? "defeated" : "named"} · {timeAgo(r.date)}
                     </span>
+                    {r.monster && (
+                      <button
+                        onClick={() => onRematch(r.monster as MonsterData)}
+                        className="btn-3d mt-1 w-full rounded-full py-1 text-[10px] font-black uppercase tracking-widest text-white shadow-sm"
+                        style={{ backgroundColor: r.monsterColor }}
+                      >
+                        ⚔ Rematch
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>
             ) : (
               <div className="flex flex-col gap-4">
                 <div className="grid grid-cols-2 gap-2">
+                  <StatTile label="Day streak" value={`${streak}🔥`} accent="#F97316" />
                   <StatTile label="Total stress released" value={`${agg.totalStressReleased}`} accent="#22C55E" />
                   <StatTile label="Monsters defeated" value={`${agg.monstersDefeated}`} accent="#7C3AED" />
-                  <StatTile label="Battles" value={`${agg.battles}`} accent="#FF1493" />
                   <StatTile label="Total damage" value={agg.totalDamage.toLocaleString()} accent="#EF4444" />
                 </div>
 
@@ -159,7 +172,7 @@ export default function HistoryGallery({ initialTab, onClose }: HistoryGalleryPr
                 </div>
 
                 <button
-                  onClick={handleClear}
+                  onClick={onClear}
                   className="mt-1 self-center rounded-full px-4 py-1.5 text-[11px] font-bold uppercase tracking-widest text-gray-400 hover:bg-white hover:text-brand-red"
                 >
                   Clear history
