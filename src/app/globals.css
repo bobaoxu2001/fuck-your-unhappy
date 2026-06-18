@@ -20,11 +20,43 @@ body {
   background: #FAF5FF;
   min-height: 100dvh;
   overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* Refined keyboard-focus ring (skips mouse clicks) */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+textarea:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 3px #fff,
+    0 0 0 5px rgba(124, 58, 237, 0.65);
+  border-radius: 12px;
 }
 
 /* Stress bar gradient */
 .stress-bar-gradient {
   background: linear-gradient(90deg, #22C55E 0%, #FACC15 40%, #F97316 70%, #EF4444 100%);
+}
+
+/* Subtle glossy sheen for progress meters */
+.meter-track {
+  background: linear-gradient(180deg, #E5E7EB 0%, #EEF0F3 100%);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+.meter-fill {
+  position: relative;
+}
+.meter-fill::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.45) 0%, rgba(255, 255, 255, 0) 55%);
+  pointer-events: none;
 }
 
 /* Comic sticker base */
@@ -33,12 +65,12 @@ body {
   align-items: center;
   justify-content: center;
   padding: 6px 14px;
-  border-radius: 6px;
+  border-radius: 8px;
   font-weight: 900;
   font-size: 13px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  box-shadow: 2px 3px 0 rgba(0,0,0,0.15);
+  box-shadow: 1.5px 2.5px 0 rgba(0, 0, 0, 0.16), 0 4px 10px rgba(0, 0, 0, 0.12);
   transform: rotate(var(--sticker-rotate, 0deg));
   user-select: none;
   white-space: nowrap;
@@ -51,16 +83,98 @@ body {
   box-shadow: 0 -4px 24px rgba(0,0,0,0.10);
 }
 
+/* ===== Buttons ===== */
+/* Shared depth + press feel for primary CTAs */
+.btn-3d {
+  transition: transform 0.16s cubic-bezier(0.34, 1.56, 0.64, 1),
+    box-shadow 0.16s ease, filter 0.16s ease;
+  will-change: transform;
+}
+.btn-3d:hover:not(:disabled) {
+  transform: translateY(-2px);
+  filter: saturate(1.04);
+}
+.btn-3d:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
 /* Generate / primary button gradient */
 .generate-btn {
-  background: linear-gradient(135deg, #A3E635 0%, #BEF264 50%, #D9F99D 100%);
-  border: 2px solid rgba(0,0,0,0.05);
+  background: linear-gradient(135deg, #65A30D 0%, #84CC16 42%, #A3E635 100%);
+  border: 2px solid rgba(0, 0, 0, 0.08);
+  color: #14300a;
+  box-shadow: 0 7px 18px rgba(101, 163, 13, 0.34),
+    inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+.generate-btn:hover:not(:disabled) {
+  box-shadow: 0 12px 24px rgba(101, 163, 13, 0.42),
+    inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+.generate-btn:active:not(:disabled) {
+  box-shadow: 0 3px 10px rgba(101, 163, 13, 0.36);
+}
+
+/* Yellow hero CTA (Enter Arena, Claim Victory) */
+.btn-yellow {
+  background: linear-gradient(135deg, #FFC400 0%, #FFD600 50%, #FFE45C 100%);
+  border: 2px solid rgba(0, 0, 0, 0.07);
+  box-shadow: 0 7px 18px rgba(255, 198, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.55);
+}
+.btn-yellow:hover:not(:disabled) {
+  box-shadow: 0 12px 24px rgba(255, 198, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.55);
+}
+.btn-yellow:active:not(:disabled) {
+  box-shadow: 0 3px 10px rgba(255, 198, 0, 0.4);
 }
 
 /* Yellow highlight behind text */
 .yellow-highlight {
   background: linear-gradient(180deg, transparent 50%, var(--color-brand-yellow) 50%);
   padding: 0 4px;
+}
+
+/* Refined range slider (mood check-in) */
+.fyu-range {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 10px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #22c55e 0%, #facc15 50%, #ef4444 100%);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.18);
+  cursor: pointer;
+  outline: none;
+}
+.fyu-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #fff;
+  border: 3px solid currentColor;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+  cursor: grab;
+}
+.fyu-range::-webkit-slider-thumb:active {
+  cursor: grabbing;
+  transform: scale(1.08);
+}
+.fyu-range::-moz-range-thumb {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #fff;
+  border: 3px solid #7c3aed;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+  cursor: grab;
+}
+
+/* Soft breathing aura for the cool-down circle */
+.breathe-aura {
+  background: radial-gradient(circle at 50% 45%, #c4b5fd 0%, #a78bfa 45%, #818cf8 100%);
+  box-shadow: 0 0 60px rgba(129, 140, 248, 0.5), inset 0 6px 24px rgba(255, 255, 255, 0.35);
 }
 
 /* ===== Scene Backgrounds ===== */

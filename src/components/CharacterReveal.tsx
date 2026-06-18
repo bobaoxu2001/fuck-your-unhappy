@@ -99,7 +99,8 @@ export default function CharacterReveal({
         )}
 
         {imageError && (
-          <p className="mx-auto mt-3 max-w-sm rounded-full bg-amber-50 px-3 py-1.5 text-[11px] font-bold text-amber-700">
+          <p className="mx-auto mt-3 flex max-w-sm items-center justify-center gap-1.5 rounded-full bg-amber-50/80 px-3.5 py-1.5 text-[11px] font-semibold text-amber-700 ring-1 ring-amber-200/70">
+            <span aria-hidden="true">🎨</span>
             {imageError}
           </p>
         )}
@@ -187,7 +188,7 @@ export default function CharacterReveal({
         whileTap={{ scale: 0.95 }}
         onClick={onReady}
         disabled={loading}
-        className="w-full py-4 rounded-2xl bg-brand-yellow text-black text-lg font-black uppercase tracking-wide shadow-md border-2 border-black/5 disabled:opacity-60"
+        className="btn-3d btn-yellow w-full py-4 rounded-2xl text-black text-lg font-black uppercase tracking-wide disabled:opacity-60"
       >
         Enter Arena 👊
       </motion.button>
@@ -196,7 +197,7 @@ export default function CharacterReveal({
         whileTap={{ scale: 0.95 }}
         onClick={onReroll}
         disabled={loading}
-        className="w-full py-3 rounded-2xl border-2 border-gray-200 text-gray-500 text-sm font-bold uppercase tracking-wide bg-white disabled:opacity-40 transition-all"
+        className="btn-3d w-full py-3 rounded-2xl border-2 border-gray-200 text-gray-500 text-sm font-bold uppercase tracking-wide bg-white shadow-sm hover:border-gray-300 hover:text-gray-700 disabled:opacity-40"
       >
         {loading ? "🎲 Rolling…" : "🎲 Re-roll"}
       </motion.button>

@@ -7,6 +7,8 @@ import { ReleaseSummaryData } from "@/lib/types";
 interface ReleaseSummaryProps {
   data: ReleaseSummaryData;
   onRestart: () => void;
+  stressBefore: number;
+  stressAfter: number;
 }
 
 function StatCard({
@@ -40,9 +42,10 @@ function StatCard({
   );
 }
 
-export default function ReleaseSummary({ data, onRestart }: ReleaseSummaryProps) {
+export default function ReleaseSummary({ data, onRestart, stressBefore, stressAfter }: ReleaseSummaryProps) {
   const [shareLabel, setShareLabel] = useState("↗ Share My Victory");
   const isVictory = data.hitCount > 0;
+  const stressDrop = Math.max(0, stressBefore - stressAfter);
   const shareText = isVictory
     ? `I just defeated ${data.monsterName} in Fuck Your Unhappy: ${data.totalDamage ?? 0} damage, best combo x${data.bestCombo}.`
     : `I named my stress monster ${data.monsterName} in Fuck Your Unhappy. Next round: boss fight.`;
@@ -106,6 +109,45 @@ export default function ReleaseSummary({ data, onRestart }: ReleaseSummaryProps)
         </span>
       </motion.div>
 
+      {/* Stress before → after (self-reported) */}
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.35 }}
+        className="w-full rounded-[2rem] bg-white/90 p-5 shadow-xl ring-1 ring-black/5"
+      >
+        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">
+          Your stress check-in
+        </p>
+        <div className="mt-3 flex items-center justify-center gap-3">
+          <div className="flex flex-col items-center">
+            <span className="text-3xl font-black tabular-nums text-gray-400 line-through decoration-2">
+              {stressBefore}%
+            </span>
+            <span className="text-[9px] font-black uppercase tracking-widest text-gray-400">
+              Before
+            </span>
+          </div>
+          <span className="text-2xl text-gray-300">→</span>
+          <div className="flex flex-col items-center">
+            <span
+              className="text-4xl font-black tabular-nums"
+              style={{ color: stressAfter > 66 ? "#EF4444" : stressAfter > 33 ? "#F97316" : "#22C55E" }}
+            >
+              {stressAfter}%
+            </span>
+            <span className="text-[9px] font-black uppercase tracking-widest text-gray-400">
+              Now
+            </span>
+          </div>
+        </div>
+        <p className="mt-3 text-center text-sm font-black uppercase tracking-wide" style={{ color: stressDrop > 0 ? "#15803D" : "#6B7280" }}>
+          {stressDrop > 0
+            ? `😮‍💨 You let go of ${stressDrop}% of your stress`
+            : "Some days just naming it is enough 💜"}
+        </p>
+      </motion.div>
+
       {/* Summary Card */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
@@ -117,7 +159,7 @@ export default function ReleaseSummary({ data, onRestart }: ReleaseSummaryProps)
         <p className="text-sm leading-relaxed opacity-90">{data.roastLine}</p>
         <div className="mt-3 text-center">
           <p className="font-display text-3xl tracking-wider text-brand-yellow leading-tight">
-            {isVictory ? `STRESS REDUCED BY ${data.stressReduced}%!` : "STRESS MONSTER IDENTIFIED!"}
+            {isVictory ? "BAD VIBES EVICTED!" : "STRESS MONSTER IDENTIFIED!"}
           </p>
         </div>
       </motion.div>
@@ -162,14 +204,14 @@ export default function ReleaseSummary({ data, onRestart }: ReleaseSummaryProps)
         <motion.button
           whileTap={{ scale: 0.95 }}
           onClick={onRestart}
-          className="w-full py-3.5 rounded-full generate-btn text-black text-lg font-black uppercase tracking-wide shadow-[0_4px_0_0_rgba(0,0,0,0.10)]"
+          className="btn-3d w-full py-3.5 rounded-full generate-btn text-lg font-black uppercase tracking-wide"
         >
           Bash Another Boss
         </motion.button>
         <motion.button
           whileTap={{ scale: 0.95 }}
           onClick={handleShare}
-          className="w-full py-3 rounded-full bg-white text-black text-sm font-black uppercase tracking-wider shadow-sm border border-gray-200"
+          className="btn-3d w-full py-3 rounded-full bg-white text-black text-sm font-black uppercase tracking-wider shadow-sm border border-gray-200 hover:border-gray-300"
         >
           {shareLabel}
         </motion.button>

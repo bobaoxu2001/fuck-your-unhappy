@@ -3,14 +3,13 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { MAX_INPUT_LENGTH } from "@/lib/safety";
+import StressSlider from "@/components/StressSlider";
 
 interface VentInputProps {
-  onSubmit: (text: string) => void;
+  onSubmit: (text: string, stress: number) => void;
   loading?: boolean;
   error?: string;
 }
-
-const INITIAL_STRESS = 10;
 
 interface Sticker {
   text: string;
@@ -35,12 +34,13 @@ const STICKERS: Sticker[] = [
 export default function VentInput({ onSubmit, loading, error }: VentInputProps) {
   const [text, setText] = useState("");
   const [touched, setTouched] = useState(false);
+  const [stress, setStress] = useState(60);
   const trimmed = text.trim();
   const showEmpty = touched && !trimmed;
 
   const handleSubmit = () => {
     setTouched(true);
-    if (trimmed && !loading) onSubmit(trimmed);
+    if (trimmed && !loading) onSubmit(trimmed, stress);
   };
 
   return (
@@ -90,35 +90,25 @@ export default function VentInput({ onSubmit, loading, error }: VentInputProps) 
             <p className="text-[11px] font-semibold text-brand-red">
               {showEmpty ? "Give the monster portal something to work with." : error}
             </p>
-            <span className="text-[10px] font-bold text-gray-300">
+            <span className="text-[10px] font-bold tabular-nums text-gray-400">
               {text.length}/{MAX_INPUT_LENGTH}
             </span>
           </div>
+        </div>
+        <div className="flex flex-col gap-2 rounded-[1.5rem] bg-white/95 p-3 ring-1 ring-black/5">
+          <span className="text-[11px] font-bold uppercase tracking-widest text-gray-500">
+            How stressed are you right now?
+          </span>
+          <StressSlider value={stress} onChange={setStress} ariaLabel="Stress level right now" />
         </div>
         <motion.button
           whileTap={{ scale: 0.96 }}
           onClick={handleSubmit}
           disabled={!text.trim() || loading}
-          className="w-full py-4 rounded-full generate-btn text-black text-lg font-black uppercase tracking-wide shadow-[0_5px_0_0_rgba(0,0,0,0.12)] disabled:opacity-40 transition-all"
+          className="btn-3d w-full py-4 rounded-full generate-btn text-lg font-black uppercase tracking-wide disabled:opacity-40"
         >
           {loading ? "Summoning your stress monster..." : "Generate My Enemy"}
         </motion.button>
-        <div className="flex flex-col gap-1">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold uppercase tracking-widest text-gray-500">
-              Current Stress Level
-            </span>
-            <span className="text-base font-black text-brand-purple">{INITIAL_STRESS}%</span>
-          </div>
-          <div className="w-full h-2 rounded-full bg-gray-200 overflow-hidden">
-            <motion.div
-              initial={{ width: 0 }}
-              animate={{ width: `${INITIAL_STRESS}%` }}
-              transition={{ duration: 0.8, ease: "easeOut" }}
-              className="h-full rounded-full stress-bar-gradient"
-            />
-          </div>
-        </div>
       </section>
 
       <section className="relative w-full max-w-sm mx-auto md:row-start-1 md:col-start-2">

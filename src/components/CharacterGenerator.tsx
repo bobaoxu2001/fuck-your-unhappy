@@ -86,7 +86,7 @@ export default function CharacterGenerator() {
           whileTap={{ scale: 0.96 }}
           onClick={handleGenerate}
           disabled={!trimmed || loading}
-          className="mt-3 w-full rounded-full generate-btn py-4 text-lg font-black uppercase tracking-wide text-black shadow-[0_5px_0_0_rgba(0,0,0,0.12)] transition-all disabled:opacity-40"
+          className="btn-3d mt-3 w-full rounded-full generate-btn py-4 text-lg font-black uppercase tracking-wide disabled:opacity-40"
         >
           {loading ? "Generating..." : "Generate Character"}
         </motion.button>

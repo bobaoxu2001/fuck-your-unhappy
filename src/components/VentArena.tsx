@@ -19,7 +19,9 @@ import {
   VICTORY_MESSAGES,
 } from "@/lib/battle";
 import { useTTS } from "@/hooks/useTTS";
+import { useSound } from "@/hooks/useSound";
 import { VoiceToggle } from "@/components/VoiceToggle";
+import { SoundToggle } from "@/components/SoundToggle";
 
 interface VentArenaProps {
   monster: MonsterData;
@@ -104,6 +106,9 @@ export default function VentArena({ monster, onFinish }: VentArenaProps) {
   // ── TTS ──────────────────────────────────────────────────────────────────────
   const { speak, stop, isSupported: ttsSupported, voiceEnabled, setVoiceEnabled } = useTTS();
 
+  // ── Sound FX + haptics ─────────────────────────────────────────────────────
+  const { play: playSound, soundEnabled, setSoundEnabled, isSupported: soundSupported } = useSound();
+
   const scene: SceneConfig = getScene(sceneId);
   const tool: ToolConfig   = getTool(toolId);
   const taunts             = monster.taunts ?? [];
@@ -114,6 +119,7 @@ export default function VentArena({ monster, onFinish }: VentArenaProps) {
   useEffect(() => {
     if (monsterHP <= 0 && victoryPhase === 0) {
       stop(); // silence any mid-sentence reaction
+      playSound("victory");
       // Phase 1: KO moment
       setVictoryPhase(1);
       setKoText(pickRandom(KO_TEXTS));
@@ -123,7 +129,7 @@ export default function VentArena({ monster, onFinish }: VentArenaProps) {
         setVictoryMsg(monster.victoryMessage || pickRandom(VICTORY_MESSAGES)(monster.name));
       }, 900);
     }
-  }, [monsterHP, victoryPhase, monster.name, monster.victoryMessage, stop]);
+  }, [monsterHP, victoryPhase, monster.name, monster.victoryMessage, stop, playSound]);
 
   useEffect(() => {
     return () => {
@@ -164,6 +170,7 @@ export default function VentArena({ monster, onFinish }: VentArenaProps) {
     isRagingRef.current = true;
     setIsRaging(true);
     rageCountRef.current += 1;
+    playSound("rage");
     spawnFloat("🔥 RAGE MODE!", "#FF4500", true);
 
     if (rageTimerRef.current) clearTimeout(rageTimerRef.current);
@@ -172,7 +179,7 @@ export default function VentArena({ monster, onFinish }: VentArenaProps) {
       setIsRaging(false);
       setRage(0);
     }, RAGE_DURATION);
-  }, [rage, spawnFloat]);
+  }, [rage, spawnFloat, playSound]);
 
   // ─── Core attack handler ─────────────────────────────────────────────────────
   const handleAttack = useCallback(
@@ -182,6 +189,7 @@ export default function VentArena({ monster, onFinish }: VentArenaProps) {
       lastAttackRef.current = now;
 
       const attack = ATTACKS.find((a) => a.id === attackId)!;
+      playSound(attackId);
       const base = randInt(attack.minDmg, attack.maxDmg);
       const damage = isRagingRef.current ? base * 2 : base;
       const appliedDamage = Math.min(damage, monsterHPRef.current);
@@ -260,7 +268,7 @@ export default function VentArena({ monster, onFinish }: VentArenaProps) {
         return next;
       });
     },
-    [isOver, sceneId, taunts.length, monster.reactions, spawnFloat, spawnParticle, speak],
+    [isOver, sceneId, taunts.length, monster.reactions, spawnFloat, spawnParticle, speak, playSound],
   );
 
   const handleTap = useCallback(() => {
@@ -280,6 +288,49 @@ export default function VentArena({ monster, onFinish }: VentArenaProps) {
       rageCountRef.current,
     );
   }, [claiming, onFinish, sceneId, toolId]);
+
+  // ─── Keyboard controls ───────────────────────────────────────────────────────
+  // 1/S = Slap, 2/P = Punch, 3/R = Roast, Space = Rage, Enter = Claim Victory.
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      // Don't hijack typing or browser/OS shortcuts.
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)
+      ) {
+        return;
+      }
+      if (e.metaKey || e.ctrlKey || e.altKey || e.repeat) return;
+
+      if (victoryPhase === 2) {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          finishBattle();
+        }
+        return;
+      }
+      if (victoryPhase !== 0) return;
+
+      const key = e.key.toLowerCase();
+      if (key === "1" || key === "s") {
+        e.preventDefault();
+        handleAttack("slap");
+      } else if (key === "2" || key === "p") {
+        e.preventDefault();
+        handleAttack("punch");
+      } else if (key === "3" || key === "r") {
+        e.preventDefault();
+        handleAttack("roast");
+      } else if (key === " " || e.code === "Space") {
+        e.preventDefault();
+        activateRage();
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [handleAttack, activateRage, finishBattle, victoryPhase]);
 
   // ─── Scene flavor text ───────────────────────────────────────────────────────
   const [flavorText, setFlavorText] = useState(() => pickRandom(scene.flavorTexts));
@@ -346,6 +397,10 @@ export default function VentArena({ monster, onFinish }: VentArenaProps) {
             Monster HP
           </span>
           <div className="flex items-center gap-2">
+            {/* SFX toggle — only rendered when Web Audio is supported */}
+            {soundSupported && (
+              <SoundToggle enabled={soundEnabled} onToggle={setSoundEnabled} />
+            )}
             {/* Voice toggle — only rendered when browser supports TTS */}
             {ttsSupported && (
               <VoiceToggle enabled={voiceEnabled} onToggle={setVoiceEnabled} />
@@ -356,11 +411,11 @@ export default function VentArena({ monster, onFinish }: VentArenaProps) {
             </span>
           </div>
         </div>
-        <div className="w-full h-2.5 rounded-full bg-gray-200 overflow-hidden">
+        <div className="meter-track w-full h-2.5 rounded-full overflow-hidden">
           <motion.div
             animate={{ width: `${hpPct}%` }}
             transition={{ duration: 0.25 }}
-            className="h-full rounded-full"
+            className="meter-fill h-full rounded-full"
             style={{ backgroundColor: hpColor }}
           />
         </div>
@@ -401,11 +456,11 @@ export default function VentArena({ monster, onFinish }: VentArenaProps) {
             </motion.span>
           )}
         </div>
-        <div className="w-full h-1.5 rounded-full bg-gray-200 overflow-hidden">
+        <div className="meter-track w-full h-1.5 rounded-full overflow-hidden">
           <motion.div
             animate={{ width: `${ragePct}%` }}
             transition={{ duration: 0.1 }}
-            className={`h-full rounded-full transition-colors duration-300 ${
+            className={`meter-fill h-full rounded-full transition-colors duration-300 ${
               isRaging ? "bg-orange-500" : ragePct > 70 ? "bg-orange-400" : "bg-orange-300"
             }`}
           />
@@ -617,7 +672,7 @@ export default function VentArena({ monster, onFinish }: VentArenaProps) {
             >
               <motion.div
                 initial={{ scale: 0 }}
-                animate={{ scale: [0, 1.3, 1] }}
+                animate={{ scale: 1 }}
                 transition={{ type: "spring", stiffness: 400, damping: 10, delay: 0.05 }}
                 className="text-4xl"
               >
@@ -718,19 +773,24 @@ export default function VentArena({ monster, onFinish }: VentArenaProps) {
 
       {/* ── ATTACK BUTTONS ─────────────────────────────────────────────────── */}
       <div className="w-full grid grid-cols-3 gap-2 md:gap-3">
-        {ATTACKS.map((attack) => (
+        {ATTACKS.map((attack, index) => (
           <motion.button
             key={attack.id}
             whileTap={{ scale: 0.88 }}
             onClick={() => handleAttack(attack.id)}
             disabled={isOver}
-            className="flex flex-col items-center justify-center gap-0.5 py-3 rounded-2xl font-black uppercase text-[11px] tracking-wide shadow-md disabled:opacity-40 transition-all md:py-4 md:text-sm"
+            aria-label={`${attack.label} attack (${attack.detail}). Keyboard ${index + 1} or ${attack.label.charAt(0)}`}
+            aria-keyshortcuts={`${index + 1} ${attack.label.charAt(0)}`}
+            className="btn-3d relative flex flex-col items-center justify-center gap-0.5 py-3 rounded-2xl font-black uppercase text-[11px] tracking-wide shadow-md disabled:opacity-40 md:py-4 md:text-sm"
             style={{
               backgroundColor: isRaging ? "#FF4500" : attack.color,
               color: attack.color === "#FFD600" && !isRaging ? "#000" : "#fff",
               border: isRaging ? "2px solid rgba(255,255,255,0.3)" : "2px solid rgba(0,0,0,0.06)",
             }}
           >
+            <span className="absolute top-1 right-1.5 hidden text-[9px] font-black opacity-60 md:inline">
+              {index + 1}
+            </span>
             <span className="text-xl leading-none">{attack.emoji}</span>
             {attack.label}
             <span className="text-[8px] font-bold opacity-75 md:text-[10px]">{attack.detail}</span>
@@ -742,10 +802,17 @@ export default function VentArena({ monster, onFinish }: VentArenaProps) {
         whileTap={{ scale: rage >= RAGE_MAX && !isOver ? 0.95 : 1 }}
         onClick={activateRage}
         disabled={rage < RAGE_MAX || isRaging || isOver}
-        className="w-full rounded-2xl border-2 border-orange-200 bg-orange-50 py-3 text-sm font-black uppercase tracking-wide text-orange-600 shadow-sm transition-all enabled:bg-orange-500 enabled:text-white enabled:shadow-md disabled:opacity-55"
+        aria-label="Activate Rage Mode for double damage. Keyboard Space"
+        aria-keyshortcuts="Space"
+        className="btn-3d w-full rounded-2xl border-2 border-orange-200 bg-orange-50 py-3 text-sm font-black uppercase tracking-wide text-orange-600 shadow-sm enabled:bg-orange-500 enabled:text-white enabled:shadow-md disabled:opacity-55"
       >
         {isRaging ? "🔥 Rage Mode Active: 2x Damage" : rage >= RAGE_MAX ? "🔥 Activate Rage Mode" : "Build Rage to Unlock 2x Damage"}
       </motion.button>
+
+      {/* Keyboard hint (desktop only) */}
+      <p className="hidden text-center text-[10px] font-bold uppercase tracking-widest text-gray-400 md:block">
+        Keyboard: <span className="text-gray-500">1/2/3</span> or <span className="text-gray-500">S/P/R</span> to attack · <span className="text-gray-500">Space</span> for rage
+      </p>
 
       {/* ── CLAIM VICTORY / SKIP ───────────────────────────────────────────── */}
       {victoryPhase === 2 ? (
@@ -756,7 +823,7 @@ export default function VentArena({ monster, onFinish }: VentArenaProps) {
           whileTap={{ scale: 0.95 }}
           onClick={finishBattle}
           disabled={claiming}
-          className="w-full py-2.5 rounded-2xl bg-brand-yellow text-black text-base font-black uppercase tracking-wide shadow-md border-2 border-black/5 disabled:opacity-60"
+          className="btn-3d btn-yellow w-full py-2.5 rounded-2xl text-black text-base font-black uppercase tracking-wide disabled:opacity-60"
         >
           🏆 Claim Victory
         </motion.button>

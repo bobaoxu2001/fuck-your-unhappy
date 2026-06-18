@@ -1,4 +1,8 @@
-export default function AppHeader() {
+interface AppHeaderProps {
+  streak?: number;
+}
+
+export default function AppHeader({ streak = 0 }: AppHeaderProps) {
   return (
     <header className="relative z-10 w-full flex items-center justify-between gap-3 px-4 pt-4 pb-2 md:px-6 md:pt-6">
       <div className="flex items-center gap-2">
@@ -10,9 +14,20 @@ export default function AppHeader() {
         <span className="yellow-highlight ml-1 text-black">UNHAPPY</span>
       </h1>
       </div>
-      <div className="hidden rounded-full bg-white/75 px-3 py-1 text-[11px] font-black uppercase tracking-widest text-gray-500 shadow-sm ring-1 ring-black/5 sm:block">
-        Stress relief arcade
-      </div>
+      {streak > 0 ? (
+        <div
+          className="flex items-center gap-1 rounded-full bg-orange-50 px-3 py-1 text-[11px] font-black uppercase tracking-widest text-orange-600 shadow-sm ring-1 ring-orange-200"
+          title={`${streak}-day check-in streak`}
+        >
+          <span className="text-sm leading-none">🔥</span>
+          <span className="tabular-nums">{streak}</span>
+          <span className="hidden sm:inline">day{streak === 1 ? "" : "s"}</span>
+        </div>
+      ) : (
+        <div className="hidden rounded-full bg-white/75 px-3 py-1 text-[11px] font-black uppercase tracking-widest text-gray-500 shadow-sm ring-1 ring-black/5 sm:block">
+          Stress relief arcade
+        </div>
+      )}
     </header>
   );
 }

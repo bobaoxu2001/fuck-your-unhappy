@@ -1,16 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Screen, MonsterData, ReleaseSummaryData } from "@/lib/types";
+import { Screen, MonsterData, ReleaseSummaryData, BattleRecord } from "@/lib/types";
 import { generateCharacterImage, generateMonsterAI, rerollMonsterAI } from "@/lib/generateMonster";
 import { buildSummary } from "@/lib/buildSummary";
+import { clearRecords, computeStreak, getRecords, saveBattle } from "@/lib/history";
 import AppHeader from "@/components/AppHeader";
 import BottomNav from "@/components/BottomNav";
 import VentInput from "@/components/VentInput";
 import CharacterReveal from "@/components/CharacterReveal";
 import VentArena from "@/components/VentArena";
+import Cooldown from "@/components/Cooldown";
 import ReleaseSummary from "@/components/ReleaseSummary";
+import HistoryGallery, { GalleryTab } from "@/components/HistoryGallery";
 
 const EXIT_ANIMATION = { opacity: 0, x: -50 };
 
@@ -22,10 +25,22 @@ export default function Home() {
   const [generating, setGenerating] = useState(false);
   const [generationError, setGenerationError] = useState("");
   const [imageError, setImageError] = useState("");
+  const [stressBefore, setStressBefore] = useState(60);
+  const [stressAfter, setStressAfter] = useState(60);
+  const [galleryTab, setGalleryTab] = useState<GalleryTab | null>(null);
+  const [records, setRecords] = useState<BattleRecord[]>([]);
 
-  const handleVent = async (text: string) => {
+  // Load persisted history on mount (client only).
+  useEffect(() => {
+    setRecords(getRecords());
+  }, []);
+
+  const streak = useMemo(() => computeStreak(records), [records]);
+
+  const handleVent = async (text: string, stress: number) => {
     if (generating) return;
     setUserInput(text);
+    setStressBefore(stress);
     setGenerating(true);
     setGenerationError("");
     setImageError("");
@@ -75,13 +90,46 @@ export default function Home() {
     maxSingleHit?: number,
     rageActivations?: number,
   ) => {
-    if (monster) {
-      const data = buildSummary(monster, hitCount, bestCombo, totalDamage, maxSingleHit, rageActivations);
-      data.sceneId = sceneId;
-      data.toolId = toolId;
-      setSummary(data);
+    if (!monster) return;
+    const data = buildSummary(monster, hitCount, bestCombo, totalDamage, maxSingleHit, rageActivations);
+    data.sceneId = sceneId;
+    data.toolId = toolId;
+    setSummary(data);
+
+    if (hitCount > 0) {
+      // Wind down before celebrating — convert catharsis into calm.
+      setScreen("cooldown");
+    } else {
+      // Nothing to recover from; skip the breathing step.
+      setStressAfter(stressBefore);
+      setRecords(saveBattle(monster, data, stressBefore, stressBefore));
       setScreen("summary");
     }
+  };
+
+  const handleCooldownDone = (after: number) => {
+    setStressAfter(after);
+    if (monster && summary) {
+      setRecords(saveBattle(monster, summary, stressBefore, after));
+    }
+    setScreen("summary");
+  };
+
+  const handleRematch = (target: MonsterData) => {
+    setGalleryTab(null);
+    setMonster(target);
+    setUserInput(target.name);
+    setSummary(null);
+    setGenerationError("");
+    setImageError("");
+    setStressBefore(60);
+    setStressAfter(60);
+    setScreen("arena");
+  };
+
+  const handleClearHistory = () => {
+    clearRecords();
+    setRecords([]);
   };
 
   const handleRestart = () => {
@@ -99,9 +147,9 @@ export default function Home() {
         <div className="pointer-events-none absolute -top-28 -right-20 h-72 w-72 rounded-full bg-brand-yellow/30 blur-3xl" />
         <div className="pointer-events-none absolute top-44 -left-24 h-72 w-72 rounded-full bg-brand-pink/20 blur-3xl" />
         <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-brand-pink via-brand-yellow to-brand-cyan z-50" />
-        <AppHeader />
+        <AppHeader streak={streak} />
 
-        <main className="relative z-10 flex-1 flex items-start justify-center px-3 pt-2 pb-28 overflow-y-auto md:px-6 md:pt-6">
+        <main className="relative z-10 flex-1 flex items-start justify-center px-3 pt-2 pb-28 overflow-y-auto md:items-center md:px-6 md:pt-6">
           <AnimatePresence mode="wait">
             {screen === "input" && (
               <motion.div key="input" exit={EXIT_ANIMATION} className="w-full">
@@ -124,16 +172,38 @@ export default function Home() {
                 <VentArena monster={monster} onFinish={handleFinish} />
               </motion.div>
             )}
+            {screen === "cooldown" && (
+              <motion.div key="cooldown" exit={EXIT_ANIMATION} className="w-full">
+                <Cooldown stressBefore={stressBefore} onComplete={handleCooldownDone} />
+              </motion.div>
+            )}
             {screen === "summary" && summary && (
               <motion.div key="summary" exit={EXIT_ANIMATION} className="w-full">
-                <ReleaseSummary data={summary} onRestart={handleRestart} />
+                <ReleaseSummary
+                  data={summary}
+                  onRestart={handleRestart}
+                  stressBefore={stressBefore}
+                  stressAfter={stressAfter}
+                />
               </motion.div>
             )}
           </AnimatePresence>
         </main>
 
-        <BottomNav screen={screen} />
+        <BottomNav screen={screen} onOpenGallery={setGalleryTab} />
       </div>
+
+      <AnimatePresence>
+        {galleryTab && (
+          <HistoryGallery
+            initialTab={galleryTab}
+            records={records}
+            onClose={() => setGalleryTab(null)}
+            onClear={handleClearHistory}
+            onRematch={handleRematch}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }
