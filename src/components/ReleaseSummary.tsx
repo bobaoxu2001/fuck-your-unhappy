@@ -159,7 +159,7 @@ export default function ReleaseSummary({ data, onRestart, stressBefore, stressAf
         <p className="text-sm leading-relaxed opacity-90">{data.roastLine}</p>
         <div className="mt-3 text-center">
           <p className="font-display text-3xl tracking-wider text-brand-yellow leading-tight">
-            {isVictory ? `STRESS REDUCED BY ${data.stressReduced}%!` : "STRESS MONSTER IDENTIFIED!"}
+            {isVictory ? "BAD VIBES EVICTED!" : "STRESS MONSTER IDENTIFIED!"}
           </p>
         </div>
       </motion.div>
