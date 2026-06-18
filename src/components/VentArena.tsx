@@ -281,6 +281,49 @@ export default function VentArena({ monster, onFinish }: VentArenaProps) {
     );
   }, [claiming, onFinish, sceneId, toolId]);
 
+  // ─── Keyboard controls ───────────────────────────────────────────────────────
+  // 1/S = Slap, 2/P = Punch, 3/R = Roast, Space = Rage, Enter = Claim Victory.
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      // Don't hijack typing or browser/OS shortcuts.
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)
+      ) {
+        return;
+      }
+      if (e.metaKey || e.ctrlKey || e.altKey || e.repeat) return;
+
+      if (victoryPhase === 2) {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          finishBattle();
+        }
+        return;
+      }
+      if (victoryPhase !== 0) return;
+
+      const key = e.key.toLowerCase();
+      if (key === "1" || key === "s") {
+        e.preventDefault();
+        handleAttack("slap");
+      } else if (key === "2" || key === "p") {
+        e.preventDefault();
+        handleAttack("punch");
+      } else if (key === "3" || key === "r") {
+        e.preventDefault();
+        handleAttack("roast");
+      } else if (key === " " || e.code === "Space") {
+        e.preventDefault();
+        activateRage();
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [handleAttack, activateRage, finishBattle, victoryPhase]);
+
   // ─── Scene flavor text ───────────────────────────────────────────────────────
   const [flavorText, setFlavorText] = useState(() => pickRandom(scene.flavorTexts));
   useEffect(() => { setFlavorText(pickRandom(scene.flavorTexts)); }, [scene]);
@@ -718,19 +761,24 @@ export default function VentArena({ monster, onFinish }: VentArenaProps) {
 
       {/* ── ATTACK BUTTONS ─────────────────────────────────────────────────── */}
       <div className="w-full grid grid-cols-3 gap-2 md:gap-3">
-        {ATTACKS.map((attack) => (
+        {ATTACKS.map((attack, index) => (
           <motion.button
             key={attack.id}
             whileTap={{ scale: 0.88 }}
             onClick={() => handleAttack(attack.id)}
             disabled={isOver}
-            className="flex flex-col items-center justify-center gap-0.5 py-3 rounded-2xl font-black uppercase text-[11px] tracking-wide shadow-md disabled:opacity-40 transition-all md:py-4 md:text-sm"
+            aria-label={`${attack.label} attack (${attack.detail}). Keyboard ${index + 1} or ${attack.label.charAt(0)}`}
+            aria-keyshortcuts={`${index + 1} ${attack.label.charAt(0)}`}
+            className="relative flex flex-col items-center justify-center gap-0.5 py-3 rounded-2xl font-black uppercase text-[11px] tracking-wide shadow-md disabled:opacity-40 transition-all md:py-4 md:text-sm"
             style={{
               backgroundColor: isRaging ? "#FF4500" : attack.color,
               color: attack.color === "#FFD600" && !isRaging ? "#000" : "#fff",
               border: isRaging ? "2px solid rgba(255,255,255,0.3)" : "2px solid rgba(0,0,0,0.06)",
             }}
           >
+            <span className="absolute top-1 right-1.5 hidden text-[9px] font-black opacity-60 md:inline">
+              {index + 1}
+            </span>
             <span className="text-xl leading-none">{attack.emoji}</span>
             {attack.label}
             <span className="text-[8px] font-bold opacity-75 md:text-[10px]">{attack.detail}</span>
@@ -742,10 +790,17 @@ export default function VentArena({ monster, onFinish }: VentArenaProps) {
         whileTap={{ scale: rage >= RAGE_MAX && !isOver ? 0.95 : 1 }}
         onClick={activateRage}
         disabled={rage < RAGE_MAX || isRaging || isOver}
+        aria-label="Activate Rage Mode for double damage. Keyboard Space"
+        aria-keyshortcuts="Space"
         className="w-full rounded-2xl border-2 border-orange-200 bg-orange-50 py-3 text-sm font-black uppercase tracking-wide text-orange-600 shadow-sm transition-all enabled:bg-orange-500 enabled:text-white enabled:shadow-md disabled:opacity-55"
       >
         {isRaging ? "🔥 Rage Mode Active: 2x Damage" : rage >= RAGE_MAX ? "🔥 Activate Rage Mode" : "Build Rage to Unlock 2x Damage"}
       </motion.button>
+
+      {/* Keyboard hint (desktop only) */}
+      <p className="hidden text-center text-[10px] font-bold uppercase tracking-widest text-gray-400 md:block">
+        Keyboard: <span className="text-gray-500">1/2/3</span> or <span className="text-gray-500">S/P/R</span> to attack · <span className="text-gray-500">Space</span> for rage
+      </p>
 
       {/* ── CLAIM VICTORY / SKIP ───────────────────────────────────────────── */}
       {victoryPhase === 2 ? (
