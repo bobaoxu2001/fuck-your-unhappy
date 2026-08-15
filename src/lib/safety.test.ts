@@ -25,12 +25,26 @@ describe("sanitizeInput", () => {
     expect(sanitizeInput("I want to die")?.safetyReason).toBe("self_harm");
     expect(sanitizeInput("going to unalive tonight")?.safetyReason).toBe("self_harm");
     expect(sanitizeInput("kms after this meeting")?.safetyReason).toBe("self_harm");
+    expect(sanitizeInput("I want to cut myself")?.safetyReason).toBe("self_harm");
+    expect(sanitizeInput("just end it all")?.safetyReason).toBe("self_harm");
   });
 
   it("blocks violence, hate, and explicit sexual input", () => {
     expect(sanitizeInput("I will kill him tomorrow")?.safetyReason).toBe("violence");
     expect(sanitizeInput("this is a hate crime")?.safetyReason).toBe("hate");
     expect(sanitizeInput("send nudes in the arena")?.safetyReason).toBe("sexual");
+  });
+
+  it("blocks slurs and identity-targeting language", () => {
+    expect(sanitizeInput("my coworker is a retard")?.safetyReason).toBe("hate");
+    expect(sanitizeInput("a chink in the armor")?.safetyReason).toBe("hate");
+  });
+
+  it("gates CJK self-harm, violence, and sexual input without false positives", () => {
+    expect(sanitizeInput("我想自杀")?.safetyReason).toBe("self_harm");
+    expect(sanitizeInput("我要杀了他")?.safetyReason).toBe("violence");
+    expect(sanitizeInput("这是强奸")?.safetyReason).toBe("sexual");
+    expect(sanitizeInput("我想死你了")?.safetyReason).toBeUndefined();
   });
 
   it("redacts emails, phones, and names before generation", () => {

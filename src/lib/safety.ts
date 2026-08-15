@@ -11,12 +11,14 @@ const SAFETY_PATTERNS: ReadonlyArray<{
     reason: "self_harm",
     patterns: [
       /\bsuicid(?:e|al)\b/i,
-      /\b(?:kill|hurt|harm)\s+(?:myself|me)\b/i,
+      /\b(?:kill|hurt|harm|cut|starve)\s+(?:myself|me)\b/i,
       /\bself[-\s]?harm\b/i,
       /\bdon['’]?t want to (?:be here|live)\b/i,
       /\b(?:want|wanna|going)\s+to die\b/i,
+      /\bend it all\b/i,
       /\bunalive\b/i,
       /\bkms\b/i,
+      /自杀|轻生|自残|活不下去|活着没(?:意思|意义)|想死(?!你)/,
     ],
   },
   {
@@ -25,6 +27,7 @@ const SAFETY_PATTERNS: ReadonlyArray<{
       /\b(?:kill|murder|shoot|stab|bomb)\s+(?:him|her|them|you|my|the|that|this)\b/i,
       /\b(?:i(?:'m| am| will|'ll| want to| wanna| might)?\s+)?(?:attack|hurt)\s+(?:him|her|them|you|my|the)\b/i,
       /\b(?:bring|use)\s+(?:a\s+)?(?:gun|knife|weapon)\b/i,
+      /杀了(?:你|他|她|他们)|想杀(?:人|你|他|她)|弄死(?:你|他|她)/,
     ],
   },
   {
@@ -34,12 +37,15 @@ const SAFETY_PATTERNS: ReadonlyArray<{
       /\bhate crime\b/i,
       /\b(?:nazi|white supremacist)\b/i,
       /\b(?:exterminate|eradicate)\s+(?:all\s+)?(?:people|men|women|immigrants|jews|muslims|christians)\b/i,
+      /\b(?:nigg(?:er|a)|chink|faggot|kike|spic|wetback|retard(?:ed)?)\b/i,
+      /纳粹|种族歧视|仇恨犯罪/,
     ],
   },
   {
     reason: "sexual",
     patterns: [
       /\b(?:porn|nudes?|explicit sex|sexual assault|rape)\b/i,
+      /强奸|性侵/,
     ],
   },
 ];

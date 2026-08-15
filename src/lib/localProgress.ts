@@ -44,9 +44,19 @@ export function readLocalProgress(): LocalProgress {
   }
 }
 
-export function recordLocalRelease(outcome: ReleaseOutcome): LocalProgress {
+export function clearLocalProgress(): LocalProgress {
+  if (typeof window === "undefined") return EMPTY_PROGRESS;
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+  } catch {
+    // Storage may be unavailable in private browsing.
+  }
+  return EMPTY_PROGRESS;
+}
+
+export function recordLocalRelease(outcome: ReleaseOutcome, date = new Date()): LocalProgress {
   const current = readLocalProgress();
-  const today = localDay();
+  const today = localDay(date);
   const isSameDay = current.lastReleaseDate === today;
   const continuesStreak = current.lastReleaseDate === dayBefore(today);
   const next: LocalProgress = {

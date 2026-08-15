@@ -3,10 +3,10 @@ import { ATTACKS, AttackId, HP_MAX, RAGE_MAX } from "./battle";
 export type BossIntent = "wobble" | "guard" | "rant";
 export type BossPhase = 1 | 2;
 
-export const INTENTS: Record<BossIntent, { label: string; cue: string; counter: AttackId; color: string }> = {
-  wobble: { label: "OFF BALANCE", cue: "Bonk builds a clean combo", counter: "slap", color: "#FF6B6B" },
-  guard: { label: "EGO SHIELD", cue: "Smush breaks the guard", counter: "punch", color: "#7C3AED" },
-  rant: { label: "STARTING A RANT", cue: "Roast cuts it short", counter: "roast", color: "#B7791F" },
+export const INTENTS: Record<BossIntent, { label: string; cue: string; counter: AttackId; color: string; textColor: string }> = {
+  wobble: { label: "OFF BALANCE", cue: "Bonk builds a clean combo", counter: "slap", color: "#FF6B6B", textColor: "#17140F" },
+  guard: { label: "EGO SHIELD", cue: "Smush breaks the guard", counter: "punch", color: "#7C3AED", textColor: "#FFFFFF" },
+  rant: { label: "STARTING A RANT", cue: "Roast cuts it short", counter: "roast", color: "#B7791F", textColor: "#17140F" },
 };
 
 export const FINISHER_HP_THRESHOLD = 90;

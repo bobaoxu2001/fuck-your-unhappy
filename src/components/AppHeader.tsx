@@ -43,7 +43,7 @@ export default function AppHeader({ screen }: { screen: Screen }) {
         {!compact && (
           <Link
             href="/privacy"
-            className="rounded-full bg-white/70 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-gray-500 ring-1 ring-black/5"
+            className="inline-flex min-h-9 items-center rounded-full bg-white/70 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-gray-500 ring-1 ring-black/5"
           >
             Privacy
           </Link>

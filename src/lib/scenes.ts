@@ -27,7 +27,7 @@ export const SCENES: readonly SceneConfig[] = [
       "HR VIOLATION",
     ],
     flavorTexts: [
-      "Your boss felt that one",
+      "Middle management felt that one",
       "That email chain is OVER",
       "Meeting adjourned... permanently",
       "Performance review: DESTROYED",
@@ -42,7 +42,7 @@ export const SCENES: readonly SceneConfig[] = [
     bgClass: "scene-classroom",
     hitTexts: [
       "POP QUIZ PAIN",
-      "MENTAL BREAKDOWN",
+      "HALL PASS REVOKED",
       "CHALK STRIKE",
       "EXAM BONK",
       "GRADE GOBLIN",
@@ -76,7 +76,7 @@ export const SCENES: readonly SceneConfig[] = [
     ],
     flavorTexts: [
       "The dishes are DONE",
-      "Roommate has been notified",
+      "The chore chart has been notified",
       "Chore list: OBLITERATED",
       "Passive-aggressive note SENT",
     ],

@@ -11,6 +11,7 @@ import {
   LocalAnalyticsSnapshot,
   type FunnelMilestone,
 } from "@/lib/localAnalytics";
+import { clearLocalProgress } from "@/lib/localProgress";
 
 interface ProgressHubProps {
   collection: CollectionSnapshot;
@@ -57,6 +58,12 @@ export default function ProgressHub({ collection, analytics, open, onToggle }: P
   const clearDeviceData = () => {
     clearCollection();
     clearLocalAnalytics();
+    clearLocalProgress();
+    try {
+      localStorage.removeItem("fyu-tts-enabled");
+    } catch {
+      // Storage may be unavailable; the rest already cleared.
+    }
     window.location.reload();
   };
 
@@ -193,7 +200,7 @@ export default function ProgressHub({ collection, analytics, open, onToggle }: P
             <h3 id="local-data-title" className="text-[10px] font-black uppercase tracking-widest text-gray-500">Local data controls</h3>
             {!confirmClear ? (
               <div className="mt-1 flex items-center justify-between gap-3">
-                <p className="text-[10px] font-semibold leading-relaxed text-gray-500">Erase this device&apos;s field guide, unlock progress, and activity counts.</p>
+                <p className="text-[10px] font-semibold leading-relaxed text-gray-500">Erase this device&apos;s field guide, unlock progress, streaks, voice preference, and activity counts.</p>
                 <button
                   type="button"
                   onClick={() => setConfirmClear(true)}

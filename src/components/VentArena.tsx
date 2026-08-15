@@ -577,7 +577,7 @@ export default function VentArena({ monster, unlockedIds, onGameEvent, onFinish 
         </div>
         <div
           className="absolute inset-x-0 top-11 z-20 mx-auto w-fit rounded-full px-3 py-1 text-center text-[9px] font-black uppercase tracking-widest text-white shadow-lg"
-          style={{ backgroundColor: INTENTS[bossIntent].color }}
+          style={{ backgroundColor: INTENTS[bossIntent].color, color: INTENTS[bossIntent].textColor }}
           role="status"
           aria-live="polite"
         >
@@ -785,7 +785,7 @@ export default function VentArena({ monster, unlockedIds, onGameEvent, onFinish 
             className="flex min-h-16 flex-col items-center justify-center rounded-2xl px-2 py-2 text-[10px] font-black uppercase tracking-wide shadow-md disabled:opacity-45"
             style={{
               backgroundColor: isRaging ? "#FF4500" : attack.color,
-              color: attack.color === "#FFD600" && !isRaging ? "#111827" : "#FFFFFF",
+              color: isRaging ? "#FFFFFF" : attack.textColor,
             }}
           >
             <span className="text-xl leading-none" aria-hidden>{attack.emoji}</span>

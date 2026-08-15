@@ -35,7 +35,7 @@ export default function PrivacyPage() {
           <div>
             <h2 className="text-xs font-black uppercase tracking-widest text-brand-purple">What is never stored</h2>
             <p className="mt-1">
-              Raw vent text is not written to local storage, share cards, challenge URLs, or analytics payloads. Clearing the Field Guide deletes the device-side counters and collection.
+              Raw vent text is not written to local storage, share cards, challenge URLs, or analytics payloads. Clearing the Field Guide deletes the device-side counters, streaks, voice preference, and collection.
             </p>
           </div>
           <div>

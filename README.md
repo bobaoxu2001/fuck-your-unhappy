@@ -8,6 +8,12 @@ Try it now: [fuck-your-unhappy.vercel.app](https://fuck-your-unhappy.vercel.app)
 
 Name the bad vibe, watch it become a fictional stress monster, bonk it in a cartoon arena, check how you feel, then share a spoiler-free victory card.
 
+> **Naming** — the product is **Unhappy Buster** (short: FYU). The repository name `fuck-your-unhappy` is the original codename; public-facing copy, metadata, and share cards all use the product name.
+
+## Screenshots
+
+Recent viewport captures from local production builds live in [`output/`](output/) (`audit/`, `retention-audit/`, `retention-build/`), each with a README describing what was verified and the evidence limits. Re-run the flow locally and drop fresh captures here before a public launch.
+
 ## Problem
 
 Most wellness products ask for time and seriousness exactly when a person has neither. Unhappy Buster offers a short, funny reset without pretending to be therapy or encouraging real-world harm.
@@ -52,6 +58,27 @@ Name it → Meet the monster → 30-second arena → Check in and close
 | Runtime | React 19 |
 | AI | OpenAI API with curated local fallback content |
 
+## Architecture
+
+```mermaid
+flowchart LR
+  A[VentInput] -->|sanitize + redact| B["/api/generate-monster"]
+  B -->|gpt-4o-mini| C[normalizeMonster]
+  C -->|unsafe?| D[curated fallback]
+  B --> D
+  A -->|on failure| D
+  C -->|safe| E[CharacterReveal]
+  E -->|background| F["/api/generate-character · gpt-image-2"]
+  E --> G[VentArena]
+  G -->|arenaEngine · battle| H[buildSummary]
+  H --> I[localCollection · localProgress · localAnalytics]
+```
+
+- **One screen, four states** — `input → reveal → arena → summary`, orchestrated by `src/app/page.tsx`.
+- **Pure logic layer** — `arenaEngine` (intents/counters/phase-2/finisher), `dailyBoss` (UTC rotation + allowlisted challenge URLs), `safety` (redaction + gates), `localCollection`/`localProgress`/`localAnalytics` (schema-versioned local storage). All randomness and time are injected so the logic is deterministically unit-tested.
+- **Server routes** — two OpenAI-backed endpoints with input sanitization, per-key request gates (in-memory + optional Upstash), schema normalization, unsafe-output scans, and curated offline fallbacks on any transport/model failure.
+- **Local-first state** — no accounts, no backend. Progression, unlocks, streaks, and aggregate counters live in `localStorage` with defensive parsing and a two-step clear control.
+
 ## Run Locally
 
 ```bash
@@ -75,6 +102,7 @@ Open [http://localhost:3000](http://localhost:3000). The app still works without
 ```bash
 npm run dev
 npm run lint
+npm run typecheck
 npm run test
 npm run build
 npm run start
@@ -107,9 +135,19 @@ This app is Vercel-ready.
 - Generated portraits use structured fictional monster traits rather than the original vent text.
 - API keys stay server-side and `.env.local` is ignored by git.
 
-## Next Validation Steps
+## Limitations & Next Validation Steps
 
-- Run opt-in user tests before claiming retention lift; the current build proves the mechanics, not their market impact
+What this build is not:
+
+- **Not therapy or crisis support** — it is a short comedy reset; see the Safety Notes below.
+- **No cross-device sync** — progression is per-browser by design.
+- **Best-effort input gates** — safety screening is pattern-based and can be paraphrased around; the model system prompt and output scans are a second layer, not a guarantee.
+- **Per-instance rate limits** — the in-memory gate resets per serverless instance; a durable shared gate requires Upstash (see below).
+- **No real-user evidence yet** — the mechanics are proven locally, not retention or efficacy claims.
+
+Next validation steps before scaling:
+
+- Run opt-in user tests before claiming retention lift
 - Add abuse/cost controls suitable for high-volume AI generation
 - Compare safe challenge-card formats and first-session activation copy
 - If cross-device cohort analytics are needed, add an explicitly consented, payload-free analytics backend
