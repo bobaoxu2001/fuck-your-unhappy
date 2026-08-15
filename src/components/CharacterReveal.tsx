@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { motion } from "framer-motion";
 import { MonsterData } from "@/lib/types";
 
@@ -8,198 +9,155 @@ interface CharacterRevealProps {
   onReady: () => void;
   onReroll: () => void;
   loading?: boolean;
+  imageLoading?: boolean;
   imageError?: string;
+  rerollsLeft?: number;
+  publicBoss?: boolean;
 }
 
-// Visual config per vibe context
 const VIBE_CONFIG: Record<string, { emoji: string; label: string; bg: string; text: string }> = {
-  corporate:  { emoji: "🏢", label: "Corporate",  bg: "#DBEAFE", text: "#1D4ED8" },
-  family:     { emoji: "🏠", label: "Family",     bg: "#FEF3C7", text: "#B45309" },
-  dating:     { emoji: "💔", label: "Dating",     bg: "#FCE7F3", text: "#BE185D" },
-  friendship: { emoji: "👥", label: "Friendship", bg: "#DCFCE7", text: "#15803D" },
-  school:     { emoji: "🎓", label: "School",     bg: "#EDE9FE", text: "#6D28D9" },
-  online:     { emoji: "📱", label: "Online",     bg: "#E0F2FE", text: "#0369A1" },
-  general:    { emoji: "⚡", label: "General",    bg: "#F3F4F6", text: "#374151" },
+  corporate: { emoji: "▦", label: "Work chaos", bg: "#DBEAFE", text: "#1D4ED8" },
+  family: { emoji: "⌂", label: "Home chaos", bg: "#FEF3C7", text: "#92400E" },
+  dating: { emoji: "♡", label: "Dating chaos", bg: "#FCE7F3", text: "#9D174D" },
+  friendship: { emoji: "◇", label: "Friend chaos", bg: "#DCFCE7", text: "#166534" },
+  school: { emoji: "✎", label: "School chaos", bg: "#EDE9FE", text: "#5B21B6" },
+  online: { emoji: "#", label: "Online chaos", bg: "#E0F2FE", text: "#075985" },
+  general: { emoji: "⚡", label: "General chaos", bg: "#F3F4F6", text: "#374151" },
 };
+
+function EnemyFact({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0 rounded-xl bg-gray-50 px-3 py-2 text-left ring-1 ring-black/5">
+      <p className="text-[8px] font-black uppercase tracking-widest text-gray-500">{label}</p>
+      <p className="mt-0.5 text-[11px] font-black leading-snug text-gray-800">{value}</p>
+    </div>
+  );
+}
 
 export default function CharacterReveal({
   monster,
   onReady,
   onReroll,
   loading,
+  imageLoading,
   imageError,
+  rerollsLeft = 1,
+  publicBoss = false,
 }: CharacterRevealProps) {
-  const vibe = monster.vibe ? VIBE_CONFIG[monster.vibe.toLowerCase()] : null;
+  const vibe = VIBE_CONFIG[monster.vibe] ?? VIBE_CONFIG.general;
+  const portrait = monster.image || "/stress-goblin.webp";
+  const portraitStatus = imageError || (imageLoading ? "Custom portrait developing…" : "");
 
   return (
     <motion.div
-      initial={{ scale: 0, rotate: -180 }}
-      animate={{ scale: 1, rotate: 0 }}
-      transition={{ type: "spring", duration: 0.8 }}
-      className="flex flex-col items-center gap-4 w-full max-w-2xl mx-auto px-1"
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="mx-auto flex w-full max-w-3xl flex-col items-center gap-2 px-1"
     >
-      {/* Subtitle */}
-      <div className="flex items-center gap-2">
-        <div className="h-px flex-1 bg-gray-200" />
-        <h2 className="text-[11px] font-black text-gray-400 uppercase tracking-[0.2em]">
-          Your nemesis appears
+      <div className="flex w-full items-center gap-2 px-2">
+        <div className="h-px flex-1 bg-gray-300" />
+        <h2 className="text-[9px] font-black uppercase tracking-[0.18em] text-gray-600 sm:text-[10px] sm:tracking-[0.22em]">
+          {publicBoss ? "Today’s public boss, ready to play" : "Your bad vibe, now safely fictional"}
         </h2>
-        <div className="h-px flex-1 bg-gray-200" />
+        <div className="h-px flex-1 bg-gray-300" />
       </div>
 
-      {/* Monster Card */}
-      <motion.div
-        whileHover={{ scale: 1.02 }}
-        className="w-full rounded-[2rem] p-5 text-center shadow-2xl border-2 bg-white/95 relative overflow-visible md:p-7"
+      <motion.section
+        layout
+        className="relative w-full overflow-hidden rounded-[1.6rem] border-2 bg-white/95 p-3 text-left shadow-2xl sm:rounded-[2rem] sm:p-5"
         style={{ borderColor: monster.color }}
       >
-        {/* Color accent stripe */}
-        <div
-          className="absolute top-0 left-0 right-0 h-1.5 rounded-t-2xl"
-          style={{ backgroundColor: monster.color }}
-        />
+        <div className="absolute inset-x-0 top-0 h-1" style={{ backgroundColor: monster.color }} />
 
-        {/* Vibe tag — top right corner */}
-        {vibe && (
-          <motion.div
-            initial={{ opacity: 0, x: 8 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.4 }}
-            className="absolute top-3.5 right-3 flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-widest"
-            style={{ backgroundColor: vibe.bg, color: vibe.text }}
-          >
-            <span>{vibe.emoji}</span>
-            <span>{vibe.label}</span>
-          </motion.div>
-        )}
-
-        {/* Generated portrait with emoji fallback */}
-        {monster.image ? (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.92 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ type: "spring", stiffness: 260, damping: 20 }}
-            className="mx-auto mt-3 aspect-square w-full max-w-[280px] overflow-hidden rounded-[1.5rem] bg-gray-50 shadow-xl ring-4 ring-white"
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={monster.image}
-              alt={`${monster.name} fictional stress monster portrait`}
-              className="h-full w-full object-cover"
+        <div className="grid grid-cols-[112px_minmax(0,1fr)] items-center gap-3 sm:grid-cols-[190px_minmax(0,1fr)] sm:gap-5">
+          <div className="relative aspect-square w-full overflow-hidden rounded-[1.15rem] bg-gradient-to-br from-yellow-50 via-pink-50 to-purple-100 shadow-lg ring-2 ring-white sm:rounded-[1.5rem] sm:ring-4">
+            <Image
+              src={portrait}
+              alt={`${monster.name}, a fictional ${monster.archetype} stress monster`}
+              fill
+              unoptimized={Boolean(monster.image)}
+              sizes="(min-width: 640px) 190px, 112px"
+              className="object-cover"
             />
-          </motion.div>
-        ) : (
-          <motion.div
-            animate={{ y: [0, -6, 0] }}
-            transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
-            className="text-8xl leading-none mt-2 drop-shadow-lg md:text-9xl"
-          >
-            {monster.emoji}
-          </motion.div>
-        )}
+            {portraitStatus && (
+              <div className="absolute inset-x-1.5 bottom-1.5 rounded-full bg-black/75 px-2 py-1 text-center text-[8px] font-black leading-tight text-white backdrop-blur sm:inset-x-3 sm:bottom-3 sm:text-[10px]">
+                {imageError ? "House mascot on duty" : "Custom art loading…"}
+              </div>
+            )}
+          </div>
 
-        {imageError && (
-          <p className="mx-auto mt-3 max-w-sm rounded-full bg-amber-50 px-3 py-1.5 text-[11px] font-bold text-amber-700">
-            {imageError}
-          </p>
-        )}
+          <div className="flex min-w-0 flex-col justify-center">
+            <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+              <span
+                className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-[8px] font-black uppercase tracking-wider"
+                style={{ backgroundColor: vibe.bg, color: vibe.text }}
+              >
+                <span aria-hidden>{vibe.emoji}</span> {vibe.label}
+              </span>
+              <span
+                className="max-w-full truncate rounded-full px-2 py-1 text-[8px] font-black uppercase tracking-wider text-white"
+                style={{ backgroundColor: monster.color }}
+              >
+                {monster.archetype}
+              </span>
+            </div>
 
-        {/* Archetype badge */}
-        {monster.archetype && (
-          <motion.div
-            initial={{ scale: 0, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ type: "spring", stiffness: 400, damping: 12, delay: 0.3 }}
-            className="mt-2.5 inline-flex items-center rounded-full px-3 py-0.5 text-[10px] font-black uppercase tracking-widest text-white shadow-sm"
-            style={{ backgroundColor: monster.color }}
-          >
-            {monster.archetype}
-          </motion.div>
-        )}
-
-        {/* Name */}
-        <h3
-          className="text-2xl font-black mt-2 uppercase tracking-wide md:text-3xl"
-          style={{ color: monster.color }}
-        >
-          {monster.name}
-        </h3>
-
-        {/* Appearance — italic visual description */}
-        {monster.appearance && (
-          <motion.p
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.5 }}
-            className="text-gray-400 mt-0.5 text-[11px] leading-relaxed italic"
-          >
-            {monster.appearance}
-          </motion.p>
-        )}
-
-        {/* Description */}
-        <p className="text-gray-600 mt-3 text-base font-semibold leading-relaxed">
-          {monster.description}
-        </p>
-
-        <p className="mt-2 rounded-2xl bg-gray-50 px-4 py-3 text-sm font-bold italic leading-relaxed text-gray-500">
-          &ldquo;{monster.battleIntro}&rdquo;
-        </p>
-
-        {/* Aura */}
-        {monster.aura && (
-          <p className="mt-1.5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-            ✦ {monster.aura}
-          </p>
-        )}
-
-        {/* Weakness */}
-        <div
-          className="mt-3 inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-black uppercase tracking-wide"
-          style={{
-            backgroundColor: monster.color + "18",
-            color: monster.color,
-          }}
-        >
-          <span>⚡</span> Weakness: {monster.weakness}
+            <h3
+              className="mt-2 break-words text-2xl font-black uppercase leading-[0.95] tracking-wide sm:text-4xl"
+              style={{ color: monster.color }}
+            >
+              {monster.name}
+            </h3>
+            <div className="mt-2 rounded-xl bg-brand-yellow-light px-2.5 py-2">
+              <p className="text-[8px] font-black uppercase tracking-widest text-amber-900">Battle weakness</p>
+              <p className="mt-0.5 text-[11px] font-black leading-snug text-amber-950 sm:text-xs">{monster.weakness}</p>
+            </div>
+          </div>
         </div>
 
-        {/* Reactions preview — small teaser at the bottom */}
-        {monster.reactions && monster.reactions.length > 0 && (
-          <motion.div
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.6 }}
-            className="mt-3 pt-3 border-t border-gray-100"
-          >
-            <p className="text-[9px] font-black uppercase tracking-widest text-gray-300 mb-1">
-              Their defense strategy:
-            </p>
-            <p className="text-[11px] italic text-gray-400 leading-snug">
-              &ldquo;{monster.reactions[0]}&rdquo;
-            </p>
-          </motion.div>
-        )}
-      </motion.div>
+        <blockquote className="mt-3 rounded-xl bg-brand-purple-dark px-3 py-2.5 text-xs font-bold italic leading-snug text-white sm:rounded-2xl sm:px-4 sm:py-3 sm:text-sm">
+          “{monster.battleIntro}”
+        </blockquote>
 
-      {/* Action Buttons */}
-      <motion.button
-        whileTap={{ scale: 0.95 }}
-        onClick={onReady}
-        disabled={loading}
-        className="w-full py-4 rounded-2xl bg-brand-yellow text-black text-lg font-black uppercase tracking-wide shadow-md border-2 border-black/5 disabled:opacity-60"
-      >
-        Enter Arena 👊
-      </motion.button>
+        <details className="group mt-2 rounded-xl bg-gray-50 ring-1 ring-black/5">
+          <summary className="flex min-h-10 cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-gray-600 [&::-webkit-details-marker]:hidden">
+            View enemy dossier
+            <span aria-hidden className="text-base transition-transform group-open:rotate-180">⌄</span>
+          </summary>
+          <div className="border-t border-black/5 px-3 pb-3 pt-2">
+            <p className="text-xs font-semibold italic leading-relaxed text-gray-500">{monster.appearance}</p>
+            <p className="mt-1.5 text-xs font-semibold leading-relaxed text-gray-700">{monster.description}</p>
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              <EnemyFact label="Crime" value={monster.crime} />
+              <EnemyFact label="Toxic skill" value={monster.toxicSkill} />
+              <EnemyFact label="Diagnosis" value={monster.diagnosis} />
+              <EnemyFact label="Aura" value={monster.aura} />
+            </div>
+          </div>
+        </details>
 
-      <motion.button
-        whileTap={{ scale: 0.95 }}
-        onClick={onReroll}
-        disabled={loading}
-        className="w-full py-3 rounded-2xl border-2 border-gray-200 text-gray-500 text-sm font-bold uppercase tracking-wide bg-white disabled:opacity-40 transition-all"
-      >
-        {loading ? "🎲 Rolling…" : "🎲 Re-roll"}
-      </motion.button>
+        <p className="sr-only" aria-live="polite">{portraitStatus}</p>
+      </motion.section>
+
+      <div className="grid w-full grid-cols-[minmax(0,1fr)_auto] gap-2">
+        <motion.button
+          whileTap={{ scale: 0.97 }}
+          onClick={onReady}
+          disabled={loading}
+          className="min-h-12 rounded-2xl bg-brand-yellow px-4 py-3 text-sm font-black uppercase tracking-wide text-black shadow-[0_4px_0_rgba(0,0,0,0.12)] disabled:opacity-60 sm:text-base"
+        >
+          Enter arena →
+        </motion.button>
+        <motion.button
+          whileTap={{ scale: 0.97 }}
+          onClick={onReroll}
+          disabled={loading || rerollsLeft <= 0}
+          aria-label={rerollsLeft > 0 ? `Re-roll monster, ${rerollsLeft} left` : "Re-roll already used"}
+          className="min-h-12 rounded-2xl border-2 border-gray-200 bg-white px-3 py-3 text-[11px] font-black uppercase tracking-wide text-gray-600 disabled:opacity-45 sm:px-5 sm:text-sm"
+        >
+          {loading ? "Recasting…" : rerollsLeft > 0 ? `↻ Re-roll (${rerollsLeft})` : "Re-roll used"}
+        </motion.button>
+      </div>
     </motion.div>
   );
 }

@@ -20,8 +20,8 @@ export interface UseTTSReturn {
 // sarcastic: high pitch + slightly fast = annoying
 // angry:     low pitch + slower = threatening (triggered when HP < 30%)
 const VOICE_SETTINGS: Record<TTSMode, { rate: number; pitch: number; volume: number }> = {
-  sarcastic: { rate: 1.15, pitch: 1.25, volume: 1 },
-  angry:     { rate: 0.88, pitch: 0.62, volume: 1 },
+  sarcastic: { rate: 1.15, pitch: 1.25, volume: 0.75 },
+  angry:     { rate: 0.88, pitch: 0.72, volume: 0.75 },
 };
 
 // ─── English voice preference order ──────────────────────────────────────────
@@ -43,21 +43,31 @@ function pickEnglishVoice(): SpeechSynthesisVoice | null {
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 export function useTTS(): UseTTSReturn {
-  // ── Support detection (safe for SSR) ──────────────────────────────────────
-  const isSupported =
-    typeof window !== "undefined" && "speechSynthesis" in window;
+  // Start silent and capability-neutral so hydration never surprises the user.
+  const [isSupported, setIsSupported] = useState(false);
 
   // ── Persistent voice toggle ───────────────────────────────────────────────
-  // Read localStorage once on mount; default ON so first-time users hear it.
-  const [voiceEnabled, setVoiceEnabledState] = useState<boolean>(() => {
-    if (typeof window === "undefined") return true;
-    const stored = localStorage.getItem("fyu-tts-enabled");
-    return stored === null ? true : stored === "true";
-  });
+  // Audio is opt-in. Returning visitors keep their explicit preference.
+  const [voiceEnabled, setVoiceEnabledState] = useState(false);
 
   // Use a ref so callbacks can read the current value without re-creating.
   const voiceEnabledRef = useRef(voiceEnabled);
   useEffect(() => { voiceEnabledRef.current = voiceEnabled; }, [voiceEnabled]);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      setIsSupported("speechSynthesis" in window);
+      try {
+        const stored = localStorage.getItem("fyu-tts-enabled");
+        const enabled = stored === "true";
+        voiceEnabledRef.current = enabled;
+        setVoiceEnabledState(enabled);
+      } catch {
+        // Keep audio off when storage is unavailable.
+      }
+    }, 0);
+    return () => window.clearTimeout(timeoutId);
+  }, []);
 
   // ── Pending speak timer ───────────────────────────────────────────────────
   const pendingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -110,7 +120,11 @@ export function useTTS(): UseTTSReturn {
     (v: boolean) => {
       voiceEnabledRef.current = v;
       setVoiceEnabledState(v);
-      localStorage.setItem("fyu-tts-enabled", String(v));
+      try {
+        localStorage.setItem("fyu-tts-enabled", String(v));
+      } catch {
+        // The current-session preference still works.
+      }
       // Silence immediately when toggling off
       if (!v) stop();
     },

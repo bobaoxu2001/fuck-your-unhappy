@@ -1,27 +1,38 @@
-import { MonsterData, ReleaseSummaryData } from "./types";
+import { HP_MAX } from "./battle";
+import { MonsterData, ReleaseOutcome, ReleaseSummaryData } from "./types";
 
-const ROASTS = [
-  (n: string) => `${n} got turned into confetti by healthy emotional processing.`,
-  (n: string) => `${n} tried to be intimidating and got bonked into a learning moment.`,
-  (n: string) => `${n}'s entire strategy collapsed under one cartoon slipper.`,
-  (n: string) => `${n} has left the chat to reconsider their brand.`,
-  (n: string) => `${n} ragequit the arena and took the bad vibes with them.`,
-  (n: string) => `${n} has been reported to the HR department of karma.`,
-  (n: string) => `${n} called. Their drama subscription has been cancelled.`,
-  (n: string) => `Scientists confirm: ${n} is 100% emotionally bankrupt.`,
-];
-
-const HEADLINES = [
+const DEFEAT_HEADLINES = [
   "BOSS CLEARED",
   "BAD VIBE BONKED",
-  "RAGE COMPLETE",
+  "PATTERN DEFLATED",
   "NEMESIS NEUTRALIZED",
-  "EMOTIONAL VICTORY",
-  "THREAT RELEASED",
 ];
 
-function pickRandom<T>(arr: T[]): T {
-  return arr[Math.floor(Math.random() * arr.length)];
+const RELEASE_STATUSES = [
+  "Returned to sender",
+  "Filed under not today",
+  "Converted into perspective",
+  "Denied more screen time",
+];
+
+const NEXT_STEPS: Record<MonsterData["vibe"], string> = {
+  corporate: "Mute one notification and choose the next five-minute task.",
+  family: "Take one quiet minute before the next conversation.",
+  dating: "Put the phone down and do one thing that belongs only to you.",
+  friendship: "Save the reply for later; clarity does not need to be instant.",
+  school: "Pick the smallest unfinished step and ignore the rest for five minutes.",
+  online: "Close one tab and let the internet survive without you for a minute.",
+  general: "Take one slow breath, unclench your shoulders, and choose one small next step.",
+};
+
+function pickRandom<T>(items: readonly T[]): T {
+  return items[Math.floor(Math.random() * items.length)];
+}
+
+function outcomeFor(hitCount: number, remainingHP: number): ReleaseOutcome {
+  if (remainingHP <= 0) return "defeated";
+  if (hitCount > 0) return "released";
+  return "named";
 }
 
 export function buildSummary(
@@ -31,32 +42,56 @@ export function buildSummary(
   totalDamage = 0,
   maxSingleHit = 0,
   rageActivations = 0,
+  remainingHP = HP_MAX,
+  elapsedSeconds = 0,
 ): ReleaseSummaryData {
-  if (hitCount === 0) {
-    return {
-      monsterName: monster.name,
-      hitCount,
-      bestCombo,
-      stressReduced: 0,
-      headline: "RESET READY",
-      roastLine: `${monster.name} is still waiting in the arena. No shame: sometimes naming the monster is the first win.`,
-      totalDamage,
-      maxSingleHit,
-      rageActivations,
-      victoryMessage: monster.victoryMessage,
-    };
-  }
+  const outcome = outcomeFor(hitCount, remainingHP);
+  const arenaProgress = Math.max(
+    0,
+    Math.min(100, Math.round(((HP_MAX - remainingHP) / HP_MAX) * 100)),
+  );
+  const bestHit = maxSingleHit > 0
+    ? `${maxSingleHit}-point ego bonk`
+    : "Naming the pattern";
+
+  const headline = outcome === "defeated"
+    ? pickRandom(DEFEAT_HEADLINES)
+    : outcome === "released"
+      ? "YOU CALLED TIME"
+      : "MONSTER NAMED";
+  const roastLine = outcome === "defeated"
+    ? monster.finalRoast || monster.victoryMessage
+    : outcome === "released"
+      ? `You stopped when you were ready. ${monster.name} does not get another minute.`
+      : `You named ${monster.name}. Turning a foggy feeling into a ridiculous character is already a shift.`;
+  const closureLine = outcome === "defeated"
+    ? `You turned ${monster.archetype} into a fictional boss and finished the round.`
+    : `You turned ${monster.archetype} into a fictional boss and chose when the round ended.`;
 
   return {
+    outcome,
     monsterName: monster.name,
+    monsterArchetype: monster.archetype,
+    monsterEmoji: monster.emoji,
+    monsterImage: monster.image,
     hitCount,
     bestCombo,
-    stressReduced: Math.min(100, Math.round(40 + hitCount * 1.5 + bestCombo * 3 + rageActivations * 8)),
-    headline: pickRandom(HEADLINES),
-    roastLine: monster.victoryMessage || pickRandom(ROASTS)(monster.name),
+    arenaProgress,
+    headline,
+    roastLine,
+    closureLine,
+    nextStep: NEXT_STEPS[monster.vibe],
+    releaseStatus: outcome === "defeated"
+      ? pickRandom(RELEASE_STATUSES)
+      : outcome === "released"
+        ? "Closed on your terms"
+        : "Pattern identified",
     totalDamage,
     maxSingleHit,
     rageActivations,
+    elapsedSeconds: Math.max(0, Math.min(300, Math.round(elapsedSeconds))),
     victoryMessage: monster.victoryMessage,
+    bestHit,
+    finalRoast: monster.finalRoast,
   };
 }

@@ -1,39 +1,44 @@
-# Fuck Your Unhappy
+# Unhappy Buster
 
-A playful stress-relief web app that turns daily frustrations into ridiculous cartoon enemies, then lets users release the bad vibe in a safe, funny boss fight.
+A private, playful stress-reset app that turns an everyday frustration into a ridiculous symbolic monster, then closes the loop with a 30-second cartoon boss fight.
 
 ## Live Demo
 
 Try it now: [fuck-your-unhappy.vercel.app](https://fuck-your-unhappy.vercel.app)
 
-Type what is stressing you out, watch it become a symbolic stress monster, roast/slap/punch it in a cartoon battle arena, then share the victory stats.
+Name the bad vibe, watch it become a fictional stress monster, bonk it in a cartoon arena, check how you feel, then share a spoiler-free victory card.
 
 ## Problem
 
-Everyone has bad days — a terrible boss, a missed deadline, an anxiety spiral. But there's no quick, fun way to process that frustration in 30 seconds on your phone.
+Most wellness products ask for time and seriousness exactly when a person has neither. Unhappy Buster offers a short, funny reset without pretending to be therapy or encouraging real-world harm.
 
 ## Solution
 
-**Fuck Your Unhappy** gives users a fast, funny, cartoonish release loop. It is designed as stress-relief comedy, not real-world harm: real people are transformed into symbolic “stress monsters,” and attacks are metaphorical arcade actions.
+**Unhappy Buster** (FYU) gives users a fast, funny release loop. Real names and contact details are redacted before generation, unsafe inputs are stopped before AI processing, and the combat is explicitly metaphorical.
 
 ## Demo Flow
 
 ```
-Input → Reveal → Arena → Summary
+Name it → Meet the monster → 30-second arena → Check in and close
 ```
 
-1. **Vent Input** — Type what made you unhappy
-2. **Character Reveal** — Generate a funny enemy with a name, archetype, appearance, weakness, taunts, intro, and victory line
-3. **Battle Arena** — Use Slap, Punch, Roast, and Rage Mode with HP, combo, damage, and reaction animations
-4. **Release Summary** — Review total damage, turns, best hit, best combo, rage activations, and share/restart
+1. **Name it** — Enter a short frustration or pick a low-effort prompt
+2. **Meet it** — See an instant mascot-backed reveal while a custom portrait can load in the background
+3. **Release it** — Choose a silly prop and scene, then use Bonk, Smush, Roast, and Rage for up to 30 seconds
+4. **Close it** — Get an honest defeated/released/named outcome, check your mood, take a small next step, and optionally share a safe card
 
 ## Core Features (MVP)
 
-- AI-generated monster profiles through a secure server route
-- Curated fallback monster roster when AI is unavailable
-- Safe symbolic fallback for sensitive inputs
-- Cartoon battle arena with HP, Rage Mode, combo, taunts, damage popups, and victory overlay
-- Shareable summary with stats and restart loop
+- Fast AI-assisted monster profiles with curated offline fallbacks
+- Immediate reveal with generated portrait enhancement in the background
+- PII redaction and sensitive-input gates on both text and image routes
+- Compact 30-second mobile arena with haptics, opt-in voice, Rage Mode, combo, and reduced-motion support
+- Countdown starts on the first attack, so reading the boss cue never burns play time
+- Counter-based Bonk / Smush / Roast strategy, a stronger phase two, and a dedicated finishing move
+- Honest closure outcomes that never label a single hit as a victory
+- One-tap scenarios, a rotating curated Daily Boss, and allowlisted raw-text-free challenge links
+- Local field guide, unlockable props/scenes/finishers, and privacy-friendly aggregate funnel counters
+- Mood check, small next step, private local streak, and raw-text-free share cards
 - Responsive layout for mobile and desktop
 
 ## Tech Stack
@@ -45,7 +50,7 @@ Input → Reveal → Arena → Summary
 | Styling | Tailwind CSS 4 |
 | Animation | Framer Motion |
 | Runtime | React 19 |
-| AI | OpenAI API with local fallback content |
+| AI | OpenAI API with curated local fallback content |
 
 ## Run Locally
 
@@ -70,6 +75,7 @@ Open [http://localhost:3000](http://localhost:3000). The app still works without
 ```bash
 npm run dev
 npm run lint
+npm run test
 npm run build
 npm run start
 ```
@@ -78,7 +84,10 @@ npm run start
 
 | Variable | Required | Notes |
 |----------|----------|-------|
-| `OPENAI_API_KEY` | Optional for local fallback, recommended for production | Used only in the server-side `/api/generate-monster` route |
+| `OPENAI_API_KEY` | Optional | Used server-side for monster copy and custom portraits; the curated experience still works without it |
+| `DISABLE_IMAGE_GENERATION` | Optional | Set to `true` to pause custom portraits without taking the app down |
+| `UPSTASH_REDIS_REST_URL` | Optional | Shared rate-limit store so serverless instances share one AI budget |
+| `UPSTASH_REDIS_REST_TOKEN` | Optional | Companion token for the Upstash REST gate |
 
 ## Deployment
 
@@ -91,17 +100,20 @@ This app is Vercel-ready.
 
 ## Safety Notes
 
-- The app is comedy stress relief, not an encouragement of real-world harm.
-- Inputs that look like real people are transformed into symbolic stress patterns.
-- Sensitive or unsafe inputs use a gentle fallback monster instead of targeted content.
+- The app is a brief comedy reset, not therapy, crisis support, or an encouragement of real-world harm.
+- The app does not persist raw vent text. Only streaks, fictional monster metadata, bounded play stats, unlock state, and allowlisted aggregate event counts are stored locally on the device.
+- Names, emails, and phone-like strings are redacted before an AI request is built.
+- Self-harm, violent, hateful, or sexual inputs are stopped before text or image generation and receive a supportive redirect.
+- Generated portraits use structured fictional monster traits rather than the original vent text.
 - API keys stay server-side and `.env.local` is ignored by git.
 
-## Future Improvements
+## Next Validation Steps
 
-- **AI-generated visuals** — Generate custom monster artwork per session
-- **Sound effects** — Comic-style hit sounds and victory fanfare
-- **Monster gallery** — Save and revisit past defeated monsters
-- **Multiplayer mode** — Co-smash monsters with friends in real time
+- Run opt-in user tests before claiming retention lift; the current build proves the mechanics, not their market impact
+- Add abuse/cost controls suitable for high-volume AI generation
+- Compare safe challenge-card formats and first-session activation copy
+- If cross-device cohort analytics are needed, add an explicitly consented, payload-free analytics backend
+- Set `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` before a high-volume public launch so the AI gate is shared across instances
 
 ## License
 

@@ -1,7 +1,13 @@
 "use client";
 
+import Image from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import {
+  AnimatePresence,
+  motion,
+  useAnimationControls,
+  useReducedMotion,
+} from "framer-motion";
 import { MonsterData } from "@/lib/types";
 import { SCENES, SceneConfig, getScene } from "@/lib/scenes";
 import { TOOLS, ToolConfig, getTool } from "@/lib/tools";
@@ -12,17 +18,34 @@ import {
   COMBO_TIMEOUT,
   FALLBACK_REACTIONS,
   FLOAT_DURATION,
+  FINISHERS,
+  HIT_MESSAGES,
   HP_MAX,
-  KO_TEXTS,
   RAGE_DURATION,
   RAGE_MAX,
   VICTORY_MESSAGES,
 } from "@/lib/battle";
+import {
+  BossIntent,
+  INTENTS,
+  applyNormalHitHp,
+  attackIdToIntent,
+  isFinisherReady,
+  nextCombo,
+  nextIntent,
+  nextRage,
+  resolveAttackDamage,
+  shouldEnterPhaseTwo,
+} from "@/lib/arenaEngine";
 import { useTTS } from "@/hooks/useTTS";
 import { VoiceToggle } from "@/components/VoiceToggle";
 
+const ARENA_SECONDS = 30;
+
 interface VentArenaProps {
   monster: MonsterData;
+  unlockedIds?: string[];
+  onGameEvent?: (event: "first_attack" | "phase_two_reached" | "rage_activated" | "boss_defeated") => void;
   onFinish: (
     hitCount: number,
     bestCombo: number,
@@ -31,10 +54,11 @@ interface VentArenaProps {
     totalDamage: number,
     maxSingleHit: number,
     rageActivations: number,
+    remainingHP: number,
+    elapsedSeconds: number,
   ) => void;
 }
 
-// ─── Floating text type ───────────────────────────────────────────────────────
 interface FloatingText {
   id: number;
   text: string;
@@ -42,234 +66,156 @@ interface FloatingText {
   y: number;
   color: string;
   big?: boolean;
-  speech?: boolean;  // speech bubble style — defensive reaction
-  rotate: number;
+  speech?: boolean;
 }
 
 interface SceneParticle {
   id: number;
   emoji: string;
   x: number;
-  delay: number;
 }
 
-function pickRandom<T>(arr: readonly T[]): T {
-  return arr[Math.floor(Math.random() * arr.length)];
+interface ConfettiPiece {
+  id: number;
+  x: number;
+  y: number;
+  rotate: number;
+  emoji: string;
 }
 
-function randInt(min: number, max: number) {
+function pickRandom<T>(items: readonly T[]): T {
+  return items[Math.floor(Math.random() * items.length)];
+}
+
+function randomInt(min: number, max: number) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
-// ─── Component ────────────────────────────────────────────────────────────────
-export default function VentArena({ monster, onFinish }: VentArenaProps) {
-  // ── Core battle state ────────────────────────────────────────────────────────
-  const [hits, setHits]             = useState(0);
-  const [combo, setCombo]           = useState(0);
-  const [monsterHP, setMonsterHP]   = useState(HP_MAX);
-  // 0 = fighting  1 = KO animation  2 = defeated overlay
+function buzz(pattern: number | number[]) {
+  if (typeof navigator === "undefined" || typeof navigator.vibrate !== "function") return;
+  try {
+    navigator.vibrate(pattern);
+  } catch {
+    // Haptics are a progressive enhancement.
+  }
+}
+
+export default function VentArena({ monster, unlockedIds, onGameEvent, onFinish }: VentArenaProps) {
+  const [hits, setHits] = useState(0);
+  const [combo, setCombo] = useState(0);
+  const [monsterHP, setMonsterHP] = useState(HP_MAX);
+  const [rage, setRage] = useState(0);
+  const [isRaging, setIsRaging] = useState(false);
   const [victoryPhase, setVictoryPhase] = useState<0 | 1 | 2>(0);
-  const [victoryMsg, setVictoryMsg] = useState("");
-  const [koText, setKoText]         = useState("");
-  const [claiming, setClaiming]     = useState(false);
-
-  // ── Rage state ───────────────────────────────────────────────────────────────
-  const [rage, setRage]             = useState(0);
-  const [isRaging, setIsRaging]     = useState(false);
-
-  // ── Visual state ─────────────────────────────────────────────────────────────
-  const [floats, setFloats]         = useState<FloatingText[]>([]);
-  const [particles, setParticles]   = useState<SceneParticle[]>([]);
-  // which attack animation is playing on the monster
-  const [hitAnim, setHitAnim]       = useState<AttackId | null>(null);
-  const [sceneId, setSceneId]       = useState("office");
-  const [toolId, setToolId]         = useState("slipper");
+  const [victoryMessage, setVictoryMessage] = useState("");
+  const [koText, setKoText] = useState("");
+  const [claiming, setClaiming] = useState(false);
+  const [timeLeft, setTimeLeft] = useState(ARENA_SECONDS);
+  const [timerStarted, setTimerStarted] = useState(false);
+  const [timerExpired, setTimerExpired] = useState(false);
+  const [bossPhase, setBossPhase] = useState<1 | 2>(1);
+  const [bossIntent, setBossIntent] = useState<BossIntent>("wobble");
+  const [phaseFlash, setPhaseFlash] = useState(false);
+  const [finisherActive, setFinisherActive] = useState(false);
+  const [sceneId, setSceneId] = useState("office");
+  const [toolId, setToolId] = useState("slipper");
   const [tauntIndex, setTauntIndex] = useState(0);
+  const [hitAnimation, setHitAnimation] = useState<AttackId | null>(null);
+  const [combatMessage, setCombatMessage] = useState("Tap the boss or choose a move. Stop whenever you feel done.");
+  const [floats, setFloats] = useState<FloatingText[]>([]);
+  const [particles, setParticles] = useState<SceneParticle[]>([]);
+  const [confetti, setConfetti] = useState<ConfettiPiece[]>([]);
 
-  // ── Refs (mutable, no re-render) ─────────────────────────────────────────────
-  const bestComboRef       = useRef(0);
-  const comboTimerRef      = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const floatIdRef         = useRef(0);
-  const particleIdRef      = useRef(0);
-  const hitCountRef        = useRef(0);
-  const totalDamageRef     = useRef(0);
-  const maxSingleHitRef    = useRef(0);
-  const rageCountRef       = useRef(0);
-  const rageTimerRef       = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const isRagingRef        = useRef(false);   // sync ref for use inside callbacks
-  const reactionIdxRef     = useRef(0);       // cycles through monster reactions
-  const monsterHPRef       = useRef(HP_MAX);  // tracks current HP for TTS mode selection
-  const lastAttackRef      = useRef(0);
+  const bestComboRef = useRef(0);
+  const hitCountRef = useRef(0);
+  const totalDamageRef = useRef(0);
+  const maxSingleHitRef = useRef(0);
+  const rageCountRef = useRef(0);
+  const monsterHPRef = useRef(HP_MAX);
+  const isRagingRef = useRef(false);
+  const reactionIndexRef = useRef(0);
+  const lastAttackRef = useRef(0);
+  const floatIdRef = useRef(0);
+  const particleIdRef = useRef(0);
+  const comboTimerRef = useRef<number | null>(null);
+  const rageTimerRef = useRef<number | null>(null);
+  const claimingRef = useRef(false);
+  const victoryPhaseRef = useRef<0 | 1 | 2>(0);
+  const timeoutIdsRef = useRef<Set<number>>(new Set());
+  const elapsedSecondsRef = useRef(0);
+  const timerStartedAtRef = useRef<number | null>(null);
+  const timerStartedRef = useRef(false);
+  const bossPhaseRef = useRef<1 | 2>(1);
+  const bossIntentRef = useRef<BossIntent>("wobble");
 
-  // ── TTS ──────────────────────────────────────────────────────────────────────
-  const { speak, stop, isSupported: ttsSupported, voiceEnabled, setVoiceEnabled } = useTTS();
-
+  const arenaControls = useAnimationControls();
+  const reduceMotion = useReducedMotion();
+  const { speak, stop, isSupported, voiceEnabled, setVoiceEnabled } = useTTS();
   const scene: SceneConfig = getScene(sceneId);
-  const tool: ToolConfig   = getTool(toolId);
-  const taunts             = monster.taunts ?? [];
-  const activeTaunt        = taunts.length > 0 ? taunts[tauntIndex % taunts.length] : null;
-  const isOver             = victoryPhase > 0;
+  const tool: ToolConfig = getTool(toolId);
+  const taunts = monster.taunts ?? [];
+  const activeTaunt = taunts.length > 0 ? taunts[tauntIndex % taunts.length] : "Your peace was not in scope.";
+  const isOver = victoryPhase > 0;
+  const unlockedSet = new Set(unlockedIds ?? [
+    ...SCENES.map(({ id }) => id),
+    ...TOOLS.map(({ id }) => id),
+    ...FINISHERS.map(({ id }) => id),
+  ]);
+  const availableFinishers = FINISHERS.filter(({ id }) => unlockedSet.has(id));
+  const finisher = availableFinishers[availableFinishers.length - 1] ?? FINISHERS[0];
+  const finisherReady = isFinisherReady(bossPhase, rage, monsterHP);
 
-  // ─── Defeat detection ────────────────────────────────────────────────────────
-  useEffect(() => {
-    if (monsterHP <= 0 && victoryPhase === 0) {
-      stop(); // silence any mid-sentence reaction
-      // Phase 1: KO moment
-      setVictoryPhase(1);
-      setKoText(pickRandom(KO_TEXTS));
-      // Phase 2: overlay after animation
-      setTimeout(() => {
-        setVictoryPhase(2);
-        setVictoryMsg(monster.victoryMessage || pickRandom(VICTORY_MESSAGES)(monster.name));
-      }, 900);
-    }
-  }, [monsterHP, victoryPhase, monster.name, monster.victoryMessage, stop]);
-
-  useEffect(() => {
-    return () => {
-      if (comboTimerRef.current) clearTimeout(comboTimerRef.current);
-      if (rageTimerRef.current) clearTimeout(rageTimerRef.current);
-      stop();
-    };
-  }, [stop]);
-
-  // ─── Spawn helpers ────────────────────────────────────────────────────────────
-  const spawnParticle = useCallback((scn: SceneConfig) => {
-    const id = ++particleIdRef.current;
-    const emoji = pickRandom(scn.particles);
-    const x = 10 + Math.random() * 80;
-    const delay = Math.random() * 0.15;
-    setParticles((p) => [...p.slice(-4), { id, emoji, x, delay }]);
-    setTimeout(() => setParticles((p) => p.filter((x) => x.id !== id)), 1200);
+  const schedule = useCallback((callback: () => void, delay: number) => {
+    const timeoutId = window.setTimeout(() => {
+      timeoutIdsRef.current.delete(timeoutId);
+      callback();
+    }, delay);
+    timeoutIdsRef.current.add(timeoutId);
+    return timeoutId;
   }, []);
 
-  const spawnFloat = useCallback((text: string, color: string, big = false, speech = false) => {
+  const spawnFloat = useCallback((
+    text: string,
+    color: string,
+    big = false,
+    speech = false,
+  ) => {
     const id = ++floatIdRef.current;
-    // Speech bubbles stay near center; impact texts scatter more
-    const x = speech ? (-15 + Math.random() * 30) : (-40 + Math.random() * 80);
-    const y = speech ? (10 + Math.random() * 20) : (-20 + Math.random() * 40);
-    setFloats((f) => [
-      ...f.slice(-6),
-      { id, text, x, y, color, big, speech, rotate: -6 + Math.random() * 12 },
+    setFloats((current) => [
+      ...current.slice(-5),
+      {
+        id,
+        text,
+        color,
+        big,
+        speech,
+        x: speech ? -12 + Math.random() * 24 : -36 + Math.random() * 72,
+        y: speech ? 8 + Math.random() * 14 : -14 + Math.random() * 28,
+      },
     ]);
-    setTimeout(
-      () => setFloats((f) => f.filter((item) => item.id !== id)),
-      speech ? FLOAT_DURATION + 600 : FLOAT_DURATION,
+    schedule(
+      () => setFloats((current) => current.filter((item) => item.id !== id)),
+      speech ? FLOAT_DURATION + 650 : FLOAT_DURATION,
     );
-  }, []);
+  }, [schedule]);
 
-  // ─── Rage mode ───────────────────────────────────────────────────────────────
-  const activateRage = useCallback(() => {
-    if (isRagingRef.current || rage < RAGE_MAX) return;
-    isRagingRef.current = true;
-    setIsRaging(true);
-    rageCountRef.current += 1;
-    spawnFloat("🔥 RAGE MODE!", "#FF4500", true);
-
-    if (rageTimerRef.current) clearTimeout(rageTimerRef.current);
-    rageTimerRef.current = setTimeout(() => {
-      isRagingRef.current = false;
-      setIsRaging(false);
-      setRage(0);
-    }, RAGE_DURATION);
-  }, [rage, spawnFloat]);
-
-  // ─── Core attack handler ─────────────────────────────────────────────────────
-  const handleAttack = useCallback(
-    (attackId: AttackId) => {
-      const now = Date.now();
-      if (isOver || monsterHPRef.current <= 0 || now - lastAttackRef.current < ATTACK_COOLDOWN) return;
-      lastAttackRef.current = now;
-
-      const attack = ATTACKS.find((a) => a.id === attackId)!;
-      const base = randInt(attack.minDmg, attack.maxDmg);
-      const damage = isRagingRef.current ? base * 2 : base;
-      const appliedDamage = Math.min(damage, monsterHPRef.current);
-
-      // Track stats
-      hitCountRef.current += 1;
-      totalDamageRef.current += appliedDamage;
-      if (appliedDamage > maxSingleHitRef.current) maxSingleHitRef.current = appliedDamage;
-
-      setHits((h) => h + 1);
-
-      // Combo
-      if (comboTimerRef.current) clearTimeout(comboTimerRef.current);
-      setCombo((c) => {
-        const next = c + 1;
-        if (next > bestComboRef.current) bestComboRef.current = next;
-        return next;
-      });
-      comboTimerRef.current = setTimeout(() => setCombo(0), COMBO_TIMEOUT);
-
-      // Monster animation (different per attack type)
-      setHitAnim(attackId);
-      setTimeout(() => setHitAnim(null), attack.squashDuration + 50);
-
-      // Floating texts — mechanically different per attack
-      if (attackId === "slap") {
-        // Slap spawns TWO floats (the rapid-fire feel)
-        spawnFloat(pickRandom(attack.texts), attack.floatColor);
-        setTimeout(() => spawnFloat(pickRandom(attack.extraTexts), "#9CA3AF"), 80);
-      } else if (attackId === "punch") {
-        // Punch spawns ONE big centered float
-        const isComboHit = hitCountRef.current > 1 && hitCountRef.current % 3 === 0;
-        spawnFloat(
-          isComboHit ? attack.comboText : pickRandom(attack.texts),
-          isRagingRef.current ? "#FF4500" : attack.floatColor,
-          true,
-        );
-      } else {
-        // Roast spawns italic mental-damage float in purple
-        spawnFloat(pickRandom(attack.texts), attack.floatColor);
-      }
-
-      // Scene particles every 2nd hit
-      if (hitCountRef.current % 2 === 0) spawnParticle(getScene(sceneId));
-
-      // Speech bubble reaction every 3rd hit — the monster defends themselves
-      if (hitCountRef.current % 3 === 0) {
-        const pool = monster.reactions?.length ? monster.reactions : FALLBACK_REACTIONS;
-        const reaction = pool[reactionIdxRef.current % pool.length];
-        reactionIdxRef.current += 1;
-        // Visual bubble + TTS fire together after a short sync delay
-        setTimeout(() => {
-          spawnFloat(reaction, "#1F2937", false, true);
-          // angry mode when enemy is near death (< 30% HP)
-          const mode = (monsterHPRef.current / HP_MAX) < 0.3 ? "angry" : "sarcastic";
-          speak(reaction, mode);
-        }, 180);
-      }
-
-      // Cycle taunts
-      if (taunts.length > 0) setTauntIndex((i) => (i + 1) % taunts.length);
-
-      // Rage meter fill
-      if (!isRagingRef.current) {
-        setRage((r) => {
-          const next = Math.min(RAGE_MAX, r + attack.rageFill);
-          if (r < RAGE_MAX && next >= RAGE_MAX) spawnFloat("RAGE READY!", "#FF4500", true);
-          return next;
-        });
-      }
-
-      // Reduce HP — keep ref in sync for TTS mode detection in callbacks
-      setMonsterHP((hp) => {
-        const next = Math.max(0, hp - appliedDamage);
-        monsterHPRef.current = next;
-        return next;
-      });
-    },
-    [isOver, sceneId, taunts.length, monster.reactions, spawnFloat, spawnParticle, speak],
-  );
-
-  const handleTap = useCallback(() => {
-    handleAttack(pickRandom(ATTACKS).id);
-  }, [handleAttack]);
+  const spawnParticle = useCallback((currentScene: SceneConfig) => {
+    const id = ++particleIdRef.current;
+    setParticles((current) => [
+      ...current.slice(-4),
+      { id, emoji: pickRandom(currentScene.particles), x: 12 + Math.random() * 76 },
+    ]);
+    schedule(
+      () => setParticles((current) => current.filter((particle) => particle.id !== id)),
+      1_050,
+    );
+  }, [schedule]);
 
   const finishBattle = useCallback(() => {
-    if (claiming) return;
+    if (claimingRef.current) return;
+    claimingRef.current = true;
     setClaiming(true);
+    stop();
     onFinish(
       hitCountRef.current,
       bestComboRef.current,
@@ -278,495 +224,610 @@ export default function VentArena({ monster, onFinish }: VentArenaProps) {
       totalDamageRef.current,
       maxSingleHitRef.current,
       rageCountRef.current,
+      monsterHPRef.current,
+      elapsedSecondsRef.current,
     );
-  }, [claiming, onFinish, sceneId, toolId]);
+  }, [onFinish, sceneId, stop, toolId]);
 
-  // ─── Scene flavor text ───────────────────────────────────────────────────────
-  const [flavorText, setFlavorText] = useState(() => pickRandom(scene.flavorTexts));
-  useEffect(() => { setFlavorText(pickRandom(scene.flavorTexts)); }, [scene]);
-  const flavorHit = hits > 0 && hits % 5 === 0;
+  const activateRage = useCallback(() => {
+    if (isRagingRef.current || rage < RAGE_MAX || isOver || timerExpired) return;
+    isRagingRef.current = true;
+    setIsRaging(true);
+    rageCountRef.current += 1;
+    onGameEvent?.("rage_activated");
+    buzz([18, 30, 18]);
+    spawnFloat("RAGE = BOUNDARIES!", "#FF4500", true);
+
+    if (rageTimerRef.current) window.clearTimeout(rageTimerRef.current);
+    rageTimerRef.current = schedule(() => {
+      isRagingRef.current = false;
+      setIsRaging(false);
+      setRage(0);
+    }, RAGE_DURATION);
+  }, [isOver, onGameEvent, rage, schedule, spawnFloat, timerExpired]);
+
+  const triggerVictory = useCallback(() => {
+    if (victoryPhaseRef.current !== 0) return;
+    victoryPhaseRef.current = 1;
+    stop();
+    setVictoryPhase(1);
+    setKoText(`${finisher.emoji} ${finisher.label}`);
+    onGameEvent?.("boss_defeated");
+    buzz([24, 40, 24, 50, 70]);
+
+    if (!reduceMotion) {
+      const icons = ["✦", "★", "●", "◆", "⚡"];
+      setConfetti(Array.from({ length: 22 }, (_, index) => ({
+        id: Date.now() + index,
+        x: -120 + Math.random() * 240,
+        y: 80 + Math.random() * 180,
+        rotate: -180 + Math.random() * 360,
+        emoji: pickRandom(icons),
+      })));
+      schedule(() => setConfetti([]), 1_700);
+    }
+
+    schedule(() => {
+      victoryPhaseRef.current = 2;
+      setVictoryMessage(monster.victoryMessage || pickRandom(VICTORY_MESSAGES)(monster.name));
+      setVictoryPhase(2);
+    }, reduceMotion ? 150 : 700);
+  }, [finisher.emoji, finisher.label, monster.name, monster.victoryMessage, onGameEvent, reduceMotion, schedule, stop]);
+
+  const activateFinisher = useCallback(() => {
+    if (!finisherReady || finisherActive || isOver) return;
+    setFinisherActive(true);
+    stop();
+    buzz([18, 28, 18, 36, 80]);
+    schedule(() => {
+      const damage = monsterHPRef.current;
+      hitCountRef.current += 1;
+      totalDamageRef.current += damage;
+      maxSingleHitRef.current = Math.max(maxSingleHitRef.current, damage);
+      setHits((count) => count + 1);
+      monsterHPRef.current = 0;
+      setMonsterHP(0);
+      setCombatMessage(`${finisher.label} The bad vibe has no rebuttal.`);
+      setFinisherActive(false);
+      triggerVictory();
+    }, reduceMotion ? 120 : 850);
+  }, [finisher.label, finisherActive, finisherReady, isOver, reduceMotion, schedule, stop, triggerVictory]);
+
+  const handleAttack = useCallback((attackId: AttackId) => {
+    const now = Date.now();
+    if (
+      isOver ||
+      timerExpired ||
+      victoryPhaseRef.current !== 0 ||
+      monsterHPRef.current <= 0 ||
+      now - lastAttackRef.current < ATTACK_COOLDOWN
+    ) return;
+    lastAttackRef.current = now;
+
+    if (!timerStartedRef.current) {
+      timerStartedRef.current = true;
+      timerStartedAtRef.current = Date.now();
+      setTimerStarted(true);
+      onGameEvent?.("first_attack");
+    }
+
+    const attack = ATTACKS.find((candidate) => candidate.id === attackId);
+    if (!attack) return;
+    const isCounter = bossIntentRef.current === attackIdToIntent(attackId);
+    const appliedDamage = resolveAttackDamage({
+      attackId,
+      isCounter,
+      bossPhase: bossPhaseRef.current,
+      isRaging: isRagingRef.current,
+      remainingHp: monsterHPRef.current,
+      roll: randomInt,
+    });
+
+    if (attackId === "slap") buzz(8);
+    if (attackId === "punch") buzz([14, 22, 14]);
+    if (attackId === "roast") buzz([6, 8, 6]);
+
+    if (!reduceMotion) {
+      const strength = (attackId === "punch" ? 10 : attackId === "slap" ? 6 : 3) * (isRagingRef.current ? 1.35 : 1);
+      void arenaControls.start({
+        x: [0, -strength, strength, -strength * 0.5, 0],
+        transition: { duration: 0.24, ease: "easeOut" },
+      });
+    }
+
+    hitCountRef.current += 1;
+    totalDamageRef.current += appliedDamage;
+    maxSingleHitRef.current = Math.max(maxSingleHitRef.current, appliedDamage);
+    setHits((count) => count + 1);
+    setCombatMessage(isCounter
+      ? `Perfect counter! ${pickRandom(HIT_MESSAGES)(monster.name, appliedDamage)}`
+      : `${INTENTS[bossIntentRef.current].label} blocked most of it. Follow the cue.`);
+
+    if (comboTimerRef.current) window.clearTimeout(comboTimerRef.current);
+    setCombo((current) => {
+      const next = nextCombo(current, isCounter, attackId);
+      bestComboRef.current = Math.max(bestComboRef.current, next);
+      return next;
+    });
+    comboTimerRef.current = schedule(() => setCombo(0), COMBO_TIMEOUT);
+
+    setHitAnimation(attackId);
+    schedule(() => setHitAnimation(null), attack.squashDuration + 50);
+
+    const useToolCopy = hitCountRef.current % 4 === 0;
+    const useSceneCopy = hitCountRef.current % 3 === 0;
+    const copy = !isCounter
+      ? "WRONG READ!"
+      : useToolCopy
+      ? pickRandom(tool.hitTexts)
+      : useSceneCopy
+        ? pickRandom(scene.hitTexts)
+        : pickRandom(attack.texts);
+    const color = !isCounter ? "#374151" : useToolCopy ? tool.color : attack.floatColor;
+    spawnFloat(copy, color, attackId === "punch");
+    if (hitCountRef.current % 2 === 0 && !reduceMotion) spawnParticle(scene);
+
+    if (hitCountRef.current % 3 === 0) {
+      const reactions = monster.reactions?.length ? monster.reactions : FALLBACK_REACTIONS;
+      const reaction = reactions[reactionIndexRef.current % reactions.length];
+      reactionIndexRef.current += 1;
+      schedule(() => {
+        spawnFloat(reaction, "#1F2937", false, true);
+        speak(reaction, monsterHPRef.current / HP_MAX < 0.3 ? "angry" : "sarcastic");
+      }, 150);
+    }
+
+    if (taunts.length > 0) setTauntIndex((index) => (index + 1) % taunts.length);
+    if (!isRagingRef.current) {
+      setRage((current) => {
+        const next = nextRage(current, attack.rageFill, isCounter, false);
+        if (current < RAGE_MAX && next >= RAGE_MAX) spawnFloat("RAGE READY!", "#FF4500", true);
+        return next;
+      });
+    }
+
+    const { rawNextHP, nextHP } = applyNormalHitHp(monsterHPRef.current, appliedDamage);
+    monsterHPRef.current = nextHP;
+    setMonsterHP(nextHP);
+    if (shouldEnterPhaseTwo(nextHP, bossPhaseRef.current)) {
+      bossPhaseRef.current = 2;
+      setBossPhase(2);
+      setPhaseFlash(true);
+      onGameEvent?.("phase_two_reached");
+      spawnFloat("PHASE 2 · EXCUSE OVERDRIVE", "#4C1D95", true);
+      schedule(() => setPhaseFlash(false), reduceMotion ? 180 : 1_050);
+    }
+    const nextBossIntent = nextIntent(bossIntentRef.current, pickRandom);
+    bossIntentRef.current = nextBossIntent;
+    setBossIntent(nextBossIntent);
+    if (rawNextHP === 0) {
+      setRage(RAGE_MAX);
+      spawnFloat("FINISHER READY!", "#111827", true);
+    }
+  }, [
+    arenaControls,
+    isOver,
+    timerExpired,
+    monster.name,
+    monster.reactions,
+    onGameEvent,
+    reduceMotion,
+    scene,
+    schedule,
+    spawnFloat,
+    spawnParticle,
+    speak,
+    taunts.length,
+    tool,
+  ]);
+
+  const handleTap = useCallback(() => {
+    handleAttack(INTENTS[bossIntentRef.current].counter);
+  }, [handleAttack]);
+
   useEffect(() => {
-    if (flavorHit) setFlavorText(pickRandom(scene.flavorTexts));
-  }, [flavorHit, scene]);
+    if (!timerStarted || victoryPhase !== 0) return;
+    const interval = window.setInterval(() => {
+      const startedAt = timerStartedAtRef.current;
+      if (startedAt === null) return;
+      elapsedSecondsRef.current = Math.floor((Date.now() - startedAt) / 1_000);
+      const next = Math.max(0, ARENA_SECONDS - elapsedSecondsRef.current);
+      setTimeLeft(next);
+      if (next === 0) {
+        window.clearInterval(interval);
+        setTimerExpired(true);
+        setCombatMessage("Time’s up. Take your result or finish the boss on your terms.");
+      }
+    }, 250);
+    return () => window.clearInterval(interval);
+  }, [timerStarted, victoryPhase]);
 
-  // ─── Derived visuals ─────────────────────────────────────────────────────────
-  const hpPct   = (monsterHP / HP_MAX) * 100;
-  const hpColor = hpPct > 50 ? "#22C55E" : hpPct > 20 ? "#FFD600" : "#EF4444";
-  const ragePct = (rage / RAGE_MAX) * 100;
+  useEffect(() => () => {
+    if (comboTimerRef.current) window.clearTimeout(comboTimerRef.current);
+    if (rageTimerRef.current) window.clearTimeout(rageTimerRef.current);
+    timeoutIdsRef.current.forEach((timeoutId) => window.clearTimeout(timeoutId));
+    timeoutIdsRef.current.clear();
+    stop();
+  }, [stop]);
 
-  // Monster animation variant based on last hit type
-  const monsterAnimate = (() => {
-    if (victoryPhase === 1) return { rotate: 720, scale: 0, opacity: 0 };
-    if (hitAnim === "slap")  return { scaleX: 1.18, scaleY: 0.82, rotate: 5, scale: 1, opacity: 1 };
-    if (hitAnim === "punch") return { scaleX: 1.38, scaleY: 0.62, rotate: -10, scale: 1, opacity: 1 };
-    if (hitAnim === "roast") return { scale: 0.72, scaleX: 1, scaleY: 1, rotate: 0, opacity: 1 };
-    return { scaleX: 1, scaleY: 1, scale: 1, rotate: 0, opacity: 1 };
-  })();
+  const hpPercent = (monsterHP / HP_MAX) * 100;
+  const ragePercent = (rage / RAGE_MAX) * 100;
+  const hpColor = hpPercent > 50 ? "#22C55E" : hpPercent > 20 ? "#F59E0B" : "#EF4444";
+  const portrait = monster.image || "/stress-goblin.webp";
+  const monsterAnimation = reduceMotion
+    ? { opacity: victoryPhase === 1 ? 0.2 : 1 }
+    : victoryPhase === 1
+      ? { rotate: 18, scale: 0.45, opacity: 0 }
+      : hitAnimation === "slap"
+        ? { rotate: 5, scaleX: 1.12, scaleY: 0.88, opacity: 1 }
+        : hitAnimation === "punch"
+          ? { rotate: -8, scaleX: 1.25, scaleY: 0.75, opacity: 1 }
+          : hitAnimation === "roast"
+            ? { rotate: 0, scale: 0.82, opacity: 1 }
+            : { rotate: 0, scale: 1, scaleX: 1, scaleY: 1, opacity: 1 };
 
-  const monsterTransition = (() => {
-    if (victoryPhase === 1) return { duration: 0.8, ease: "easeIn" as const };
-    if (hitAnim === "punch") return { type: "spring" as const, stiffness: 800, damping: 8 };
-    if (hitAnim === "roast") return { type: "spring" as const, stiffness: 300, damping: 8 };
-    return { type: "spring" as const, stiffness: 700, damping: 10 };
-  })();
-
-  // ─── Render ───────────────────────────────────────────────────────────────────
   return (
-    <div className="flex flex-col items-center gap-2 w-full max-w-2xl mx-auto px-1 md:gap-3">
-
-      <div className="w-full rounded-[1.5rem] bg-white/85 px-4 py-3 text-center shadow-sm ring-1 ring-black/5">
-        <p className="text-[10px] font-black uppercase tracking-[0.24em] text-gray-400">Battle Arena</p>
-        <p className="mt-1 text-sm font-bold italic leading-snug text-gray-600">
-          &ldquo;{monster.battleIntro}&rdquo;
-        </p>
-      </div>
-
-      {/* ── SCENE TABS ─────────────────────────────────────────────────────── */}
-      <div className="w-full flex items-center gap-1.5 bg-white/80 rounded-2xl p-1 shadow-sm border border-gray-100">
-        {SCENES.map((s) => (
+    <div className="mx-auto flex w-full max-w-2xl flex-col items-center gap-2 px-1">
+      <section className="w-full rounded-[1.5rem] bg-white/90 p-3 shadow-lg ring-1 ring-black/5">
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0 text-left">
+            <p className="text-[9px] font-black uppercase tracking-[0.2em] text-brand-purple">30-second private arena</p>
+            <p className="truncate text-sm font-black text-gray-900">{monster.name} · {monster.archetype}</p>
+          </div>
           <button
-            key={s.id}
-            onClick={() => setSceneId(s.id)}
-            className={`flex-1 flex items-center justify-center gap-1 py-2 rounded-xl text-xs font-black uppercase tracking-wide transition-all duration-200 ${
-              sceneId === s.id
-                ? "bg-brand-purple text-white shadow-md"
-                : "text-gray-400 hover:text-gray-600"
-            }`}
+            type="button"
+            onClick={finishBattle}
+            disabled={claiming || victoryPhase === 1 || finisherActive}
+            className="min-h-10 shrink-0 rounded-full bg-gray-100 px-4 text-xs font-black uppercase tracking-wide text-gray-700 ring-1 ring-black/5 disabled:opacity-40"
           >
-            <span className="text-sm">{s.emoji}</span>
-            <span className="hidden min-[340px]:inline">{s.label}</span>
+            {timerExpired ? "Take result ✓" : hits === 0 ? "Name it & close" : "I’m good ✓"}
           </button>
-        ))}
-      </div>
-
-      {/* ── MONSTER HP BAR ─────────────────────────────────────────────────── */}
-      <div className="w-full flex flex-col gap-0.5">
-        <div className="flex items-center justify-between">
-          <span className="text-xs font-black uppercase tracking-widest text-gray-500">
-            Monster HP
-          </span>
-          <div className="flex items-center gap-2">
-            {/* Voice toggle — only rendered when browser supports TTS */}
-            {ttsSupported && (
-              <VoiceToggle enabled={voiceEnabled} onToggle={setVoiceEnabled} />
-            )}
-            <span className="text-base font-black tabular-nums" style={{ color: hpColor }}>
-              {monsterHP}
-              <span className="text-[10px] text-gray-400 font-bold ml-0.5">/ {HP_MAX}</span>
-            </span>
-          </div>
         </div>
-        <div className="w-full h-2.5 rounded-full bg-gray-200 overflow-hidden">
-          <motion.div
-            animate={{ width: `${hpPct}%` }}
-            transition={{ duration: 0.25 }}
-            className="h-full rounded-full"
-            style={{ backgroundColor: hpColor }}
-          />
-        </div>
-      </div>
 
-      {/* ── RAGE METER ─────────────────────────────────────────────────────── */}
-      <div className="w-full flex flex-col gap-0.5">
-        <div className="flex items-center justify-between">
-          <AnimatePresence mode="wait">
-            {isRaging ? (
-              <motion.span
-                key="raging"
-                initial={{ scale: 0.8, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="text-xs font-black uppercase tracking-widest text-orange-500"
-              >
-                🔥 RAGE MODE ACTIVE
-              </motion.span>
-            ) : (
-              <motion.span
-                key="calm"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="text-xs font-black uppercase tracking-widest text-gray-400"
-              >
-                Rage Meter {rage >= RAGE_MAX ? "Ready" : ""}
-              </motion.span>
-            )}
-          </AnimatePresence>
-          {isRaging && (
-            <motion.span
-              animate={{ opacity: [1, 0.4, 1] }}
-              transition={{ repeat: Infinity, duration: 0.4 }}
-              className="text-[10px] font-black text-orange-500 uppercase"
-            >
-              2× DMG
-            </motion.span>
-          )}
-        </div>
-        <div className="w-full h-1.5 rounded-full bg-gray-200 overflow-hidden">
-          <motion.div
-            animate={{ width: `${ragePct}%` }}
-            transition={{ duration: 0.1 }}
-            className={`h-full rounded-full transition-colors duration-300 ${
-              isRaging ? "bg-orange-500" : ragePct > 70 ? "bg-orange-400" : "bg-orange-300"
-            }`}
-          />
-        </div>
-      </div>
-
-      {/* ── HITS + COMBO ───────────────────────────────────────────────────── */}
-      <div className="w-full flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1 bg-white rounded-xl px-2.5 py-1 shadow-sm border border-gray-100">
-            <span className="text-[10px] font-bold text-gray-400 uppercase">Hits</span>
-            <span className="text-sm font-black text-brand-red">{hits}</span>
-          </div>
-          <div className="flex items-center gap-1 bg-white rounded-xl px-2.5 py-1 shadow-sm border border-gray-100">
-            <span className="text-[10px] font-bold text-gray-400 uppercase">Combo</span>
-            <span className="text-sm font-black" style={{ color: combo > 2 ? "#FFD600" : "#9CA3AF" }}>
-              {combo}x
-            </span>
-          </div>
-        </div>
-        {combo >= 3 && (
-          <motion.div
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            className="comic-sticker bg-brand-yellow text-black text-xs"
-            style={{ ["--sticker-rotate" as string]: "-3deg" }}
-          >
-            x{combo} COMBO
-          </motion.div>
-        )}
-      </div>
-
-      {/* ── MONSTER ARENA ──────────────────────────────────────────────────── */}
-      <motion.div
-        className={`relative flex items-center justify-center w-full rounded-3xl transition-colors duration-500 ${scene.bgClass}`}
-        style={{ height: "clamp(180px, 34vh, 320px)" }}
-        animate={isRaging ? { boxShadow: ["0 0 0px #FF450000", "0 0 18px #FF4500aa", "0 0 6px #FF450055"] } : { boxShadow: "0 0 0px #00000000" }}
-        transition={isRaging ? { repeat: Infinity, duration: 0.6 } : {}}
-      >
-        {/* Scene particles */}
-        <AnimatePresence>
-          {particles.map((p) => (
-            <motion.div
-              key={p.id}
-              initial={{ opacity: 1, y: 0, scale: 0.6 }}
-              animate={{ opacity: 0, y: -90, scale: 1.1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 1.0, delay: p.delay, ease: "easeOut" }}
-              className="absolute bottom-4 pointer-events-none select-none z-0 text-lg"
-              style={{ left: `${p.x}%` }}
-            >
-              {p.emoji}
-            </motion.div>
-          ))}
-        </AnimatePresence>
-
-        {/* Floating hit texts + speech bubble reactions */}
-        <AnimatePresence>
-          {floats.map((f) =>
-            f.speech ? (
-              /* ── Speech bubble: defensive reaction ── */
-              <motion.div
-                key={f.id}
-                initial={{ opacity: 0, y: 0, scale: 0.75, x: f.x }}
-                animate={{ opacity: [0, 1, 1, 0], y: -55 + f.y, scale: 1, x: f.x }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 1.3, times: [0, 0.08, 0.72, 1], ease: "easeOut" }}
-                className="absolute top-6 pointer-events-none select-none z-10"
-              >
-                <div className="relative">
-                  <div
-                    className="bg-white border-2 border-gray-800 rounded-2xl rounded-bl-sm px-3 py-1.5 shadow-md max-w-[150px] text-center"
-                    style={{ boxShadow: "2px 2px 0 #1F2937" }}
-                  >
-                    <span className="text-[10px] font-bold italic text-gray-800 leading-tight block">
-                      &ldquo;{f.text}&rdquo;
-                    </span>
-                  </div>
-                  {/* Tail of the speech bubble */}
-                  <div className="absolute -bottom-2 left-4 w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[8px] border-t-gray-800" />
-                  <div className="absolute -bottom-1.5 left-[17px] w-0 h-0 border-l-[5px] border-l-transparent border-r-[5px] border-r-transparent border-t-[7px] border-t-white" />
-                </div>
-              </motion.div>
-            ) : (
-              /* ── Standard impact text ── */
-              <motion.div
-                key={f.id}
-                initial={{ opacity: 1, y: 0, scale: f.big ? 0.7 : 0.5, x: f.x }}
-                animate={{ opacity: 0, y: -80 + f.y, scale: f.big ? 1.5 : 1.2, x: f.x }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.65, ease: "easeOut" }}
-                className="absolute top-4 pointer-events-none select-none z-10"
-              >
-                <span
-                  className="comic-sticker text-white"
-                  style={{
-                    backgroundColor: f.color,
-                    color: f.color === "#FFD600" ? "#000" : "#fff",
-                    fontSize: f.big ? "0.9rem" : "0.75rem",
-                    ["--sticker-rotate" as string]: `${f.rotate}deg`,
-                  }}
-                >
-                  {f.text}
-                </span>
-              </motion.div>
-            )
-          )}
-        </AnimatePresence>
-
-        {/* Monster emoji */}
-        <motion.button
-          onClick={handleTap}
-          animate={monsterAnimate}
-          transition={monsterTransition}
-          className="text-8xl select-none cursor-pointer transition-none drop-shadow-lg z-10 md:text-9xl"
-          disabled={isOver}
-        >
-          {monster.emoji}
-        </motion.button>
-
-        {/* KO flash overlay (phase 1) */}
-        <AnimatePresence>
-          {victoryPhase === 1 && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: [0, 0.9, 0.6, 0.9, 0] }}
-              transition={{ duration: 0.8, times: [0, 0.1, 0.3, 0.5, 1] }}
-              className="absolute inset-0 rounded-3xl bg-white z-30 pointer-events-none"
-            />
-          )}
-        </AnimatePresence>
-
-        {/* KO text (phase 1) */}
-        <AnimatePresence>
-          {victoryPhase === 1 && (
-            <motion.div
-              initial={{ scale: 0, opacity: 1 }}
-              animate={{ scale: [0, 1.4, 1.2], opacity: [1, 1, 1] }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.5 }}
-              className="absolute z-40 pointer-events-none"
-            >
-              <span className="font-display text-3xl text-brand-red tracking-widest drop-shadow-lg">
-                {koText}
-              </span>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Flavor text every 5th hit */}
-        {flavorHit && victoryPhase === 0 && (
-          <motion.div
-            key={`flavor-${hits}`}
-            initial={{ scale: 0, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="absolute bottom-2 left-2 right-2 text-center z-10"
-          >
-            <span className="font-display text-sm text-brand-red tracking-wider inline-block bg-white/80 backdrop-blur-sm rounded-full px-4 py-1">
-              {flavorText}
-            </span>
-          </motion.div>
-        )}
-
-        {/* Tool indicator */}
-        <AnimatePresence mode="wait">
-          {victoryPhase === 0 && (
-            <motion.div
-              key={toolId}
-              initial={{ scale: 0, rotate: -30 }}
-              animate={{ scale: 1, rotate: 8 }}
-              exit={{ scale: 0, rotate: 30 }}
-              transition={{ type: "spring", stiffness: 500, damping: 15 }}
-              className="absolute top-2 right-3 text-2xl pointer-events-none select-none z-10 drop-shadow-md"
-            >
-              {tool.emoji}
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Rage mode indicator inside arena */}
-        <AnimatePresence>
-          {isRaging && victoryPhase === 0 && (
-            <motion.div
-              initial={{ scale: 0, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0, opacity: 0 }}
-              className="absolute top-2 left-3 z-10 pointer-events-none select-none"
-            >
-              <motion.span
-                animate={{ scale: [1, 1.15, 1] }}
-                transition={{ repeat: Infinity, duration: 0.3 }}
-                className="text-xl"
-              >
-                🔥
-              </motion.span>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* ── VICTORY OVERLAY (phase 2) ─────────────────────────────────────── */}
-        <AnimatePresence>
-          {victoryPhase === 2 && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.85 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ type: "spring", stiffness: 300, damping: 20 }}
-              className="absolute inset-0 flex flex-col items-center justify-center rounded-3xl bg-black/82 backdrop-blur-sm z-20 px-5 text-center gap-1.5"
-            >
-              <motion.div
-                initial={{ scale: 0 }}
-                animate={{ scale: [0, 1.3, 1] }}
-                transition={{ type: "spring", stiffness: 400, damping: 10, delay: 0.05 }}
-                className="text-4xl"
-              >
-                ✨
-              </motion.div>
-              <motion.p
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.15 }}
-                className="font-display text-2xl text-brand-yellow tracking-wider leading-tight"
-              >
-                DEFEATED!
-              </motion.p>
-              <motion.p
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.3 }}
-                className="text-white text-[11px] leading-snug opacity-90 max-w-[190px]"
-              >
-                {victoryMsg}
-              </motion.p>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </motion.div>
-
-      {/* ── MONSTER NAME + ARCHETYPE + TAUNT ──────────────────────────────── */}
-      <div className="w-full text-center min-h-[32px]">
-        <div className="flex items-center justify-center gap-2">
-          <p className="text-sm font-black uppercase tracking-wider text-gray-500">
-            {monster.name}
-          </p>
-          {monster.archetype && (
-            <span
-              className="text-[9px] font-black uppercase tracking-widest rounded-full px-2 py-0.5 text-white"
-              style={{ backgroundColor: monster.color + "CC" }}
-            >
-              {monster.archetype}
-            </span>
-          )}
-        </div>
-        {monster.aura && (
-          <p className="text-[9px] font-bold text-gray-300 uppercase tracking-widest mt-0.5">
-            ✦ {monster.aura}
-          </p>
-        )}
-        <AnimatePresence mode="wait">
-          {activeTaunt && victoryPhase === 0 && (
-            <motion.p
-              key={activeTaunt}
-              initial={{ opacity: 0, y: 4 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -4 }}
-              transition={{ duration: 0.2 }}
-              className="text-[11px] font-bold italic text-gray-500 mt-0.5 leading-tight"
-            >
-              &ldquo;{activeTaunt}&rdquo;
-            </motion.p>
-          )}
-        </AnimatePresence>
-      </div>
-
-      {/* ── WEAPON SELECTOR ────────────────────────────────────────────────── */}
-      <div className="w-full">
-        <div className="flex items-center justify-between mb-1">
-          <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">
-            Weapon
-          </span>
-          <AnimatePresence mode="wait">
-            <motion.span
-              key={toolId}
-              initial={{ opacity: 0, y: 4 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -4 }}
-              transition={{ duration: 0.15 }}
-              className="text-[11px] font-black uppercase tracking-wide text-brand-purple"
-            >
-              {tool.emoji} {tool.label}
-            </motion.span>
-          </AnimatePresence>
-        </div>
-        <div className="flex items-center gap-1 overflow-x-auto pb-1 scrollbar-hide">
-          {TOOLS.map((t) => (
+        <div className="mt-2 grid grid-cols-3 gap-1 rounded-2xl bg-gray-100 p-1" aria-label="Choose arena scene">
+          {SCENES.map((candidate) => (
             <button
-              key={t.id}
-              onClick={() => setToolId(t.id)}
-              className={`flex items-center justify-center w-11 h-9 rounded-xl text-lg transition-all duration-200 border-2 shrink-0 ${
-                toolId === t.id
-                  ? "bg-white shadow-md border-brand-purple scale-110"
-                  : "bg-white/60 border-transparent hover:border-gray-200"
+              key={candidate.id}
+              type="button"
+              onClick={() => setSceneId(candidate.id)}
+              disabled={!unlockedSet.has(candidate.id)}
+              aria-pressed={sceneId === candidate.id}
+              aria-label={unlockedSet.has(candidate.id) ? candidate.label : `${candidate.label} locked`}
+              className={`min-h-9 rounded-xl px-2 text-[10px] font-black uppercase tracking-wide transition-colors disabled:cursor-not-allowed disabled:opacity-35 ${
+                sceneId === candidate.id ? "bg-brand-purple text-white shadow" : "text-gray-600"
               }`}
             >
-              {t.emoji}
+              <span aria-hidden>{unlockedSet.has(candidate.id) ? candidate.emoji : "🔒"}</span> {candidate.label}
             </button>
           ))}
         </div>
-      </div>
 
-      {/* ── ATTACK BUTTONS ─────────────────────────────────────────────────── */}
-      <div className="w-full grid grid-cols-3 gap-2 md:gap-3">
+        <div className="mt-2 grid grid-cols-[1fr_auto] items-center gap-3">
+          <div className="space-y-1.5">
+            <div>
+              <div className="mb-0.5 flex justify-between text-[9px] font-black uppercase tracking-widest text-gray-600">
+                <span>Boss ego</span><span>{monsterHP}/{HP_MAX}</span>
+              </div>
+              <div
+                role="progressbar"
+                aria-label="Boss ego remaining"
+                aria-valuemin={0}
+                aria-valuemax={HP_MAX}
+                aria-valuenow={monsterHP}
+                className="h-2 overflow-hidden rounded-full bg-gray-200"
+              >
+                <motion.div className="h-full rounded-full" animate={{ width: `${hpPercent}%`, backgroundColor: hpColor }} />
+              </div>
+            </div>
+            <div>
+              <div className="mb-0.5 flex justify-between text-[9px] font-black uppercase tracking-widest text-gray-600">
+                <span>Rage = boundary boost</span><span>{Math.round(ragePercent)}%</span>
+              </div>
+              <div
+                role="progressbar"
+                aria-label="Boundary boost charged"
+                aria-valuemin={0}
+                aria-valuemax={RAGE_MAX}
+                aria-valuenow={rage}
+                className="h-2 overflow-hidden rounded-full bg-gray-200"
+              >
+                <motion.div className="h-full rounded-full bg-gradient-to-r from-brand-pink to-orange-500" animate={{ width: `${ragePercent}%` }} />
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="rounded-xl bg-gray-50 px-2 py-1.5 text-center ring-1 ring-black/5" aria-live="polite">
+              <p className="text-base font-black text-gray-900">{timeLeft}</p>
+              <p className="text-[8px] font-black uppercase tracking-wider text-gray-500">{timerStarted ? "sec" : "on first hit"}</p>
+            </div>
+            <VoiceToggle
+              supported={isSupported}
+              enabled={voiceEnabled}
+              onToggle={setVoiceEnabled}
+            />
+          </div>
+        </div>
+      </section>
+
+      <motion.section
+        animate={arenaControls}
+        className={`relative flex w-full items-center justify-center overflow-hidden rounded-[1.75rem] ${scene.bgClass} ${
+          bossPhase === 2
+            ? "ring-4 ring-brand-pink/70 shadow-[0_0_0_2px_rgba(255,214,0,0.65),0_14px_36px_rgba(124,58,237,0.34)]"
+            : ""
+        }`}
+        style={{ height: "clamp(210px, 31vh, 255px)" }}
+        aria-label={`${scene.label} cartoon arena`}
+      >
+        <AnimatePresence>
+          {bossPhase === 2 && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: reduceMotion ? 0.2 : [0.16, 0.28, 0.16] }}
+              exit={{ opacity: 0 }}
+              transition={reduceMotion ? { duration: 0.01 } : { duration: 1.8, repeat: Infinity, ease: "easeInOut" }}
+              className="pointer-events-none absolute inset-0 z-0 bg-[radial-gradient(circle_at_50%_52%,rgba(255,214,0,0.08),rgba(236,72,153,0.34)_62%,rgba(76,29,149,0.58))]"
+              aria-hidden
+            />
+          )}
+        </AnimatePresence>
+        <div className="absolute left-3 top-3 z-20 flex gap-1.5">
+          <span className="rounded-full bg-white/90 px-2.5 py-1 text-[9px] font-black uppercase tracking-wide text-gray-700 shadow-sm">Hits {hits}</span>
+          <span className="rounded-full bg-white/90 px-2.5 py-1 text-[9px] font-black uppercase tracking-wide text-gray-700 shadow-sm">Combo ×{combo}</span>
+        </div>
+        <div
+          className="absolute inset-x-0 top-11 z-20 mx-auto w-fit rounded-full px-3 py-1 text-center text-[9px] font-black uppercase tracking-widest text-white shadow-lg"
+          style={{ backgroundColor: INTENTS[bossIntent].color }}
+          role="status"
+          aria-live="polite"
+        >
+          {bossPhase === 2 ? "Phase 2 · " : ""}{INTENTS[bossIntent].label} · {INTENTS[bossIntent].cue}
+        </div>
+        <div className="absolute right-3 top-3 z-20 flex items-center gap-1" aria-hidden>
+          {bossPhase === 2 && (
+            <span className="rounded-full bg-brand-purple-deep px-2 py-1 text-[8px] font-black uppercase tracking-widest text-brand-yellow shadow">
+              Phase 2
+            </span>
+          )}
+          <span className="rounded-full bg-white/90 px-2.5 py-1 text-sm shadow">{tool.emoji}</span>
+        </div>
+
+        <AnimatePresence>
+          {phaseFlash && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.7 }}
+              animate={{ opacity: [0, 1, 1, 0], scale: [0.7, 1.08, 1, 1.25] }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: reduceMotion ? 0.1 : 1 }}
+              className="pointer-events-none absolute inset-0 z-50 flex flex-col items-center justify-center bg-brand-purple-deep/95 px-6 text-center text-white"
+            >
+              <span className="text-4xl" aria-hidden>😤</span>
+              <p className="font-display text-4xl tracking-wide text-brand-yellow">EXCUSE OVERDRIVE</p>
+              <p className="mt-1 text-xs font-black uppercase tracking-widest">Read the cue. Counters now hit harder.</p>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {finisherActive && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="pointer-events-none absolute inset-0 z-[60] flex items-center justify-center overflow-hidden bg-black/95 text-center"
+            >
+              <motion.div
+                initial={{ scale: reduceMotion ? 1 : 0.2, rotate: reduceMotion ? 0 : -12 }}
+                animate={{ scale: reduceMotion ? 1 : [0.2, 1.35, 1], rotate: reduceMotion ? 0 : [-12, 8, 0] }}
+                transition={{ duration: reduceMotion ? 0.01 : 0.7, ease: "easeOut" }}
+              >
+                <p className="text-6xl" aria-hidden>{finisher.emoji}</p>
+                <p className="mt-2 font-display text-5xl tracking-wider text-brand-yellow">{finisher.label}</p>
+                <p className="mt-2 text-xs font-black uppercase tracking-[0.2em] text-white">Boundary delivered</p>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {particles.map((particle) => (
+            <motion.span
+              key={particle.id}
+              initial={{ opacity: 1, y: 30, scale: 0.7 }}
+              animate={{ opacity: 0, y: -80, scale: 1.1 }}
+              transition={{ duration: 0.9 }}
+              className="pointer-events-none absolute bottom-3 text-xl"
+              style={{ left: `${particle.x}%` }}
+              aria-hidden
+            >
+              {particle.emoji}
+            </motion.span>
+          ))}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {floats.map((floating) => (
+            <motion.div
+              key={floating.id}
+              initial={{ opacity: 0, y: 12, x: floating.x, scale: 0.75 }}
+              animate={{ opacity: [0, 1, 1, 0], y: -58 + floating.y, x: floating.x, scale: floating.big ? 1.2 : 1 }}
+              transition={{ duration: floating.speech ? 1.3 : 0.7, ease: "easeOut" }}
+              className={`pointer-events-none absolute top-12 z-30 max-w-[190px] text-center font-black ${
+                floating.speech
+                  ? "rounded-2xl border-2 border-gray-900 bg-white px-3 py-2 text-[10px] italic text-gray-900 shadow-[3px_3px_0_#1F2937]"
+                  : "rounded-lg px-3 py-1.5 text-xs text-white shadow-lg"
+              }`}
+              style={floating.speech ? undefined : { backgroundColor: floating.color }}
+            >
+              {floating.speech ? `“${floating.text}”` : floating.text}
+            </motion.div>
+          ))}
+        </AnimatePresence>
+
+        <motion.button
+          type="button"
+          onClick={handleTap}
+          disabled={isOver || timerExpired}
+          animate={monsterAnimation}
+          transition={reduceMotion ? { duration: 0.01 } : { type: "spring", stiffness: 520, damping: 12 }}
+          aria-label={`${INTENTS[bossIntent].cue} against fictional boss ${monster.name}`}
+          className={`relative z-10 aspect-square w-[min(54%,190px)] overflow-hidden rounded-[1.5rem] bg-white shadow-2xl ring-4 disabled:cursor-default ${
+            bossPhase === 2
+              ? "ring-brand-yellow saturate-125 shadow-[0_0_32px_rgba(255,214,0,0.48)]"
+              : "ring-white"
+          }`}
+        >
+          <Image
+            src={portrait}
+            alt=""
+            fill
+            unoptimized={Boolean(monster.image)}
+            sizes="190px"
+            draggable={false}
+            className="pointer-events-none object-cover"
+          />
+        </motion.button>
+
+        <div className="absolute inset-x-3 bottom-3 z-20 text-center">
+          <p className="inline-block rounded-full bg-white/90 px-3 py-1 text-[10px] font-black italic text-gray-700 shadow-sm">
+            “{activeTaunt}”
+          </p>
+        </div>
+
+        <AnimatePresence>
+          {victoryPhase === 1 && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: [0, 1, 1], scale: [0.8, 1.08, 1] }}
+              transition={{ duration: 0.45, ease: "easeOut" }}
+              className="pointer-events-none absolute inset-0 z-40 flex items-center justify-center bg-white/80"
+            >
+              <p className="font-display text-5xl tracking-widest text-brand-red">{koText}</p>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {confetti.map((piece) => (
+            <motion.span
+              key={piece.id}
+              initial={{ opacity: 1, x: 0, y: 0, rotate: 0 }}
+              animate={{ opacity: 0, x: piece.x, y: piece.y, rotate: piece.rotate }}
+              transition={{ duration: 1.3, ease: "easeOut" }}
+              className="pointer-events-none absolute left-1/2 top-1/3 z-50 text-xl text-brand-pink"
+              aria-hidden
+            >
+              {piece.emoji}
+            </motion.span>
+          ))}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {victoryPhase === 2 && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.22 }}
+              className="absolute inset-0 z-40 flex flex-col items-center justify-center gap-2 bg-brand-purple-dark/95 px-6 text-center text-white"
+            >
+              <span className="text-4xl" aria-hidden>✨</span>
+              <p className="font-display text-4xl tracking-wider text-brand-yellow">BOSS CLEARED</p>
+              <p className="max-w-sm text-xs font-semibold leading-relaxed">{victoryMessage}</p>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </motion.section>
+
+      <p
+        aria-live="polite"
+        className="min-h-10 w-full rounded-2xl bg-white/90 px-4 py-2 text-center text-xs font-black leading-snug text-brand-purple shadow-sm ring-1 ring-black/5"
+      >
+        {combatMessage}
+      </p>
+
+      <section className="w-full" aria-label="Choose a silly arena prop">
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-[9px] font-black uppercase tracking-widest text-gray-600">Prop</span>
+          <span className="text-[10px] font-black uppercase tracking-wide text-brand-purple">{tool.emoji} {tool.label}</span>
+        </div>
+        <div className="mt-1 grid grid-cols-5 gap-1.5">
+          {TOOLS.map((candidate) => {
+            const unlocked = unlockedSet.has(candidate.id);
+            return (
+              <button
+                key={candidate.id}
+                type="button"
+                onClick={() => setToolId(candidate.id)}
+                disabled={!unlocked}
+                aria-label={unlocked ? `${candidate.label}: ${candidate.feeling}` : `${candidate.label} locked`}
+                aria-pressed={toolId === candidate.id}
+                className={`min-h-11 rounded-xl text-xl transition-all ${
+                  toolId === candidate.id
+                    ? "border-2 border-brand-purple bg-white shadow"
+                    : "border-2 border-transparent bg-white/65"
+                } disabled:cursor-not-allowed disabled:opacity-35`}
+              >
+                <span aria-hidden>{unlocked ? candidate.emoji : "🔒"}</span>
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      <div className="grid w-full grid-cols-3 gap-2">
         {ATTACKS.map((attack) => (
           <motion.button
             key={attack.id}
-            whileTap={{ scale: 0.88 }}
+            type="button"
+            whileTap={{ scale: reduceMotion ? 1 : 0.92 }}
             onClick={() => handleAttack(attack.id)}
-            disabled={isOver}
-            className="flex flex-col items-center justify-center gap-0.5 py-3 rounded-2xl font-black uppercase text-[11px] tracking-wide shadow-md disabled:opacity-40 transition-all md:py-4 md:text-sm"
+            disabled={isOver || timerExpired}
+            className="flex min-h-16 flex-col items-center justify-center rounded-2xl px-2 py-2 text-[10px] font-black uppercase tracking-wide shadow-md disabled:opacity-45"
             style={{
               backgroundColor: isRaging ? "#FF4500" : attack.color,
-              color: attack.color === "#FFD600" && !isRaging ? "#000" : "#fff",
-              border: isRaging ? "2px solid rgba(255,255,255,0.3)" : "2px solid rgba(0,0,0,0.06)",
+              color: attack.color === "#FFD600" && !isRaging ? "#111827" : "#FFFFFF",
             }}
           >
-            <span className="text-xl leading-none">{attack.emoji}</span>
-            {attack.label}
-            <span className="text-[8px] font-bold opacity-75 md:text-[10px]">{attack.detail}</span>
+            <span className="text-xl leading-none" aria-hidden>{attack.emoji}</span>
+            <span className="mt-1">{attack.label}</span>
+            <span className="text-[8px] opacity-75">{attack.detail}</span>
           </motion.button>
         ))}
       </div>
 
-      <motion.button
-        whileTap={{ scale: rage >= RAGE_MAX && !isOver ? 0.95 : 1 }}
-        onClick={activateRage}
-        disabled={rage < RAGE_MAX || isRaging || isOver}
-        className="w-full rounded-2xl border-2 border-orange-200 bg-orange-50 py-3 text-sm font-black uppercase tracking-wide text-orange-600 shadow-sm transition-all enabled:bg-orange-500 enabled:text-white enabled:shadow-md disabled:opacity-55"
-      >
-        {isRaging ? "🔥 Rage Mode Active: 2x Damage" : rage >= RAGE_MAX ? "🔥 Activate Rage Mode" : "Build Rage to Unlock 2x Damage"}
-      </motion.button>
-
-      {/* ── CLAIM VICTORY / SKIP ───────────────────────────────────────────── */}
       {victoryPhase === 2 ? (
-        <motion.button
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.6 }}
-          whileTap={{ scale: 0.95 }}
+        <button
+          type="button"
           onClick={finishBattle}
           disabled={claiming}
-          className="w-full py-2.5 rounded-2xl bg-brand-yellow text-black text-base font-black uppercase tracking-wide shadow-md border-2 border-black/5 disabled:opacity-60"
+          className="min-h-12 w-full rounded-2xl bg-brand-yellow px-5 py-3 text-base font-black uppercase tracking-wide text-black shadow-[0_4px_0_rgba(0,0,0,0.12)] disabled:opacity-60"
         >
-          🏆 Claim Victory
+          Take the win →
+        </button>
+      ) : finisherReady ? (
+        <motion.button
+          type="button"
+          whileTap={{ scale: reduceMotion ? 1 : 0.96 }}
+          onClick={activateFinisher}
+          disabled={finisherActive || isOver}
+          className="min-h-14 w-full overflow-hidden rounded-2xl bg-black px-4 py-3 font-display text-2xl tracking-wider text-brand-yellow shadow-[0_5px_0_#7C3AED] disabled:opacity-50"
+        >
+          {finisher.emoji} FINISH IT · {finisher.label}
         </motion.button>
       ) : (
         <button
-          onClick={finishBattle}
-          disabled={victoryPhase === 1 || claiming}
-          className="text-[11px] font-bold text-gray-400 uppercase tracking-wide py-1 disabled:opacity-0"
+          type="button"
+          onClick={activateRage}
+          disabled={rage < RAGE_MAX || isRaging || isOver || timerExpired}
+          className="min-h-11 w-full rounded-2xl border-2 border-orange-200 bg-orange-50 px-4 py-2 text-xs font-black uppercase tracking-wide text-orange-700 transition-colors enabled:bg-orange-500 enabled:text-white disabled:opacity-55"
         >
-          {hits === 0 ? "Skip" : "I'm Done 😌"}
+          {isRaging
+            ? "Boundary boost active · 2× arcade points"
+            : rage >= RAGE_MAX
+              ? "Activate boundary boost · 2× arcade points"
+              : timerStarted
+                ? "Read the cue to charge the finisher"
+                : "Timer starts with your first attack"}
         </button>
       )}
     </div>
