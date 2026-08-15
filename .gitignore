@@ -31,6 +31,9 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
+# vitest crash leftovers
+*.tmpdir/
+
 # env files (can opt-in for committing if needed)
 .env*
 !.env.example
