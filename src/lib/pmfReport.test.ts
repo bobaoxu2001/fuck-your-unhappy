@@ -15,6 +15,23 @@ import {
 
 const TODAY = "2026-08-15";
 
+/** Simulates real Redis scan semantics: only cursor "0" starts a scan. */
+class StrictScanStore extends FakeRedisStore {
+  async pipeline(commands: ReadonlyArray<ReadonlyArray<string | number>>): Promise<unknown[]> {
+    const results: unknown[] = [];
+    for (const command of commands) {
+      const name = String(command[0]).toUpperCase();
+      if ((name === "SSCAN" || name === "HSCAN") && String(command[2] ?? "") !== "0") {
+        results.push(null); // real Redis rejects a non-"0" start cursor
+      } else {
+        const single = await super.pipeline([command]);
+        results.push(single[0]);
+      }
+    }
+    return results;
+  }
+}
+
 function event(
   install: string,
   session: string,
@@ -157,6 +174,20 @@ describe("PMF report round trip (write pipeline -> report)", () => {
     const byChannel = new Map(report.by_share_channel.map((row) => [row.channel, row.shares]));
     expect(byChannel.get("native")).toBe(1);
     expect(byChannel.get("download")).toBe(0);
+  });
+
+  it("reads sets/hashes with strict Redis scan cursors (regression)", async () => {
+    const store = new StrictScanStore();
+    await seed(store);
+    const report = await computePmfReport(store, { days: 14, todayKey: TODAY, now: new Date("2026-08-15T12:00:00.000Z") });
+    // These all depend on SSCAN/HSCAN results; an empty-string start cursor
+    // would make every one of them read zero.
+    expect(report.funnel.first_time_visitors).toBe(4);
+    expect(report.funnel.unique_completers).toBe(3);
+    expect(report.funnel.activation_first_visitors_pct).toBe(75);
+    const bySource = new Map(report.by_utm_source.map((row) => [row.source, row]));
+    expect(bySource.get("tiktok")?.completes_user_days).toBe(2);
+    expect(bySource.get("none")?.completes_user_days).toBe(4);
   });
 
   it("excludes retention days whose follow-up window has not elapsed", async () => {

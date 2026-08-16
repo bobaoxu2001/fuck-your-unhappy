@@ -77,15 +77,19 @@ interface ScanSpec {
 /** Cursor-safe batched scan; returns raw item lists per key (HSCAN = flat pairs). */
 async function scanAll(read: StoreReader, specs: ScanSpec[]): Promise<Map<string, string[]>> {
   const collected = new Map<string, string[]>();
-  const cursors = new Map<string, string>();
-  for (const spec of specs) cursors.set(spec.key, "");
+  // Next cursor to send for each key. Redis starts scans at "0", which is
+  // also the "done" cursor, so a separate done-set distinguishes "not yet
+  // scanned" from "fully scanned".
+  const nextCursor = new Map<string, string>();
+  for (const spec of specs) nextCursor.set(spec.key, "0");
+  const done = new Set<string>();
+
   for (let iteration = 0; iteration < 100; iteration += 1) {
-    const pending = specs.filter((spec) => cursors.get(spec.key) !== "0");
+    const pending = specs.filter((spec) => !done.has(spec.key));
     if (pending.length === 0) break;
     const results = await read.pipeline(
-      pending.map((spec) => [spec.kind, spec.key, cursors.get(spec.key) ?? "0"]),
+      pending.map((spec) => [spec.kind, spec.key, nextCursor.get(spec.key) ?? "0"]),
     );
-    let remaining = 0;
     results.forEach((result, index) => {
       const spec = pending[index];
       const items = collected.get(spec.key) ?? [];
@@ -100,10 +104,13 @@ async function scanAll(read: StoreReader, specs: ScanSpec[]): Promise<Map<string
         }
       }
       collected.set(spec.key, items);
-      cursors.set(spec.key, cursor);
-      if (cursor !== "0") remaining += 1;
+      if (cursor === "0") {
+        done.add(spec.key);
+      } else {
+        nextCursor.set(spec.key, cursor);
+      }
     });
-    if (remaining === 0) break;
+    if (pending.every((spec) => done.has(spec.key))) break;
   }
   return collected;
 }
