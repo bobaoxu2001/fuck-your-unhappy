@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import {
   clearCollection,
   CollectionSnapshot,
@@ -12,6 +13,7 @@ import {
   type FunnelMilestone,
 } from "@/lib/localAnalytics";
 import { clearLocalProgress } from "@/lib/localProgress";
+import { resetRemoteIdentity } from "@/lib/remoteAnalytics";
 
 interface ProgressHubProps {
   collection: CollectionSnapshot;
@@ -59,6 +61,7 @@ export default function ProgressHub({ collection, analytics, open, onToggle }: P
     clearCollection();
     clearLocalAnalytics();
     clearLocalProgress();
+    resetRemoteIdentity();
     try {
       localStorage.removeItem("fyu-tts-enabled");
     } catch {
@@ -192,7 +195,11 @@ export default function ProgressHub({ collection, analytics, open, onToggle }: P
               ))}
             </ol>
             <p className="mt-2 text-[10px] font-semibold leading-relaxed text-gray-500">
-              Counts stay in this browser. They contain no vent text, identity, session ID, or event payload and are never sent anywhere by this app.
+              These local counts stay in this browser and are never sent anywhere. Separately, when product analytics is enabled, the app sends anonymous aggregate product events (no vent text) to Unhappy Buster&apos;s own storage — see the{" "}
+              <Link href="/privacy" className="underline decoration-brand-purple/40 underline-offset-2">
+                Privacy
+              </Link>{" "}
+              page.
             </p>
           </section>
 
@@ -200,7 +207,7 @@ export default function ProgressHub({ collection, analytics, open, onToggle }: P
             <h3 id="local-data-title" className="text-[10px] font-black uppercase tracking-widest text-gray-500">Local data controls</h3>
             {!confirmClear ? (
               <div className="mt-1 flex items-center justify-between gap-3">
-                <p className="text-[10px] font-semibold leading-relaxed text-gray-500">Erase this device&apos;s field guide, unlock progress, streaks, voice preference, and activity counts.</p>
+                <p className="text-[10px] font-semibold leading-relaxed text-gray-500">Erase this device&apos;s field guide, unlock progress, streaks, voice preference, activity counts, and the anonymous analytics ID.</p>
                 <button
                   type="button"
                   onClick={() => setConfirmClear(true)}

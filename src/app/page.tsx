@@ -23,6 +23,8 @@ import {
   trackLocalEvent,
 } from "@/lib/localAnalytics";
 import { sanitizeInput } from "@/lib/safety";
+import { trackRemoteEvent } from "@/lib/remoteAnalytics";
+import { BossSource, GenerationMode, getDurationBucket } from "@/lib/analyticsSchema";
 import AppHeader from "@/components/AppHeader";
 import BottomNav from "@/components/BottomNav";
 import VentInput from "@/components/VentInput";
@@ -62,6 +64,9 @@ export default function Home() {
   const [newUnlocks, setNewUnlocks] = useState<UnlockStatus[]>([]);
   const generationIdRef = useRef(0);
   const openedRef = useRef(false);
+  const fightContextRef = useRef<{ bossSource: BossSource; generationMode?: GenerationMode }>({
+    bossSource: "custom",
+  });
   const mainRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
@@ -74,6 +79,9 @@ export default function Home() {
     if (!openedRef.current) {
       openedRef.current = true;
       setAnalytics(trackLocalEvent("app_opened"));
+      // Anonymous remote visit event: fires once per tab session (session ID
+      // survives reloads, so Flow E never double-counts visits).
+      trackRemoteEvent({ event: "visit" });
     }
   }, []);
 
@@ -100,13 +108,18 @@ export default function Home() {
     }
   };
 
-  const handleVent = async (text: string) => {
+  const handleVent = async (text: string, source: "custom" | "scenario" = "custom") => {
     if (generating) return;
     const safeInput = sanitizeInput(text);
     if (!safeInput || safeInput.isSensitive) {
       setGenerationError("Edit the vent into a safe, non-identifying description of the situation.");
       return;
     }
+
+    // Explicit loop start: once per session, with the entry surface as the
+    // acquisition-relevant dimension (typed vent = organic, one-tap scenario
+    // = custom, daily boss = daily, challenge link = challenge).
+    trackRemoteEvent({ event: "start", entryType: source === "scenario" ? "custom" : "organic" });
 
     const generationId = ++generationIdRef.current;
     setUserInput(safeInput.cleaned);
@@ -121,8 +134,11 @@ export default function Home() {
       if (generationIdRef.current !== generationId) return;
 
       // Activation comes first: reveal the playable boss immediately, then paint it in the background.
+      const generationMode: GenerationMode = monsterResult.fallback ? "curated_fallback" : "live_ai";
+      fightContextRef.current = { bossSource: source, generationMode };
       setMonster(monsterResult);
       setAnalytics(trackLocalEvent("monster_revealed"));
+      trackRemoteEvent({ event: "boss_revealed", bossSource: source, generationMode });
       setScreen("reveal");
       setGenerating(false);
       void generatePortrait(monsterResult, generationId);
@@ -149,7 +165,7 @@ export default function Home() {
 
   const handleQuickVent = (text: string) => {
     setAnalytics(trackLocalEvent("quick_context_selected"));
-    void handleVent(text);
+    void handleVent(text, "scenario");
   };
 
   const handlePublicBoss = (boss: DailyBoss) => {
@@ -163,11 +179,21 @@ export default function Home() {
     setImageError("");
     setRerollsLeft(0);
     setScreen("reveal");
+    const source: BossSource = challengeBoss?.id === boss.id ? "challenge" : "daily";
+    fightContextRef.current = { bossSource: source };
     setAnalytics(trackLocalEvent(challengeBoss?.id === boss.id ? "challenge_opened" : "daily_boss_opened"));
+    trackRemoteEvent({ event: "start", entryType: source });
+    trackRemoteEvent({ event: "boss_revealed", bossSource: source });
   };
 
   const handleStartArena = () => {
+    const fight = fightContextRef.current;
     setAnalytics(trackLocalEvent("battle_started"));
+    trackRemoteEvent({
+      event: "arena_started",
+      bossSource: fight.bossSource,
+      ...(fight.generationMode ? { generationMode: fight.generationMode } : {}),
+    });
     setScreen("arena");
   };
 
@@ -247,6 +273,14 @@ export default function Home() {
       setAnalytics(trackLocalEvent("round_released"));
     }
     setAnalytics(trackLocalEvent("summary_viewed"));
+    const fight = fightContextRef.current;
+    trackRemoteEvent({
+      event: "arena_completed",
+      bossSource: fight.bossSource,
+      ...(fight.generationMode ? { generationMode: fight.generationMode } : {}),
+      result: data.outcome,
+      durationBucket: getDurationBucket(elapsedSeconds),
+    });
     setScreen("summary");
   };
 
@@ -282,6 +316,12 @@ export default function Home() {
 
   const handleSummaryShareEvent = (event: "share_started" | "share_completed" | "mood_better" | "mood_same" | "mood_worse") => {
     setAnalytics(trackLocalEvent(event));
+    if (event === "share_started") {
+      trackRemoteEvent({
+        event: "share",
+        channel: typeof navigator !== "undefined" && "share" in navigator ? "native" : "download",
+      });
+    }
   };
 
   const unlockedIds = collection.unlocks.filter(({ unlocked }) => unlocked).map(({ id }) => id);

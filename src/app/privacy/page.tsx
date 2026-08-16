@@ -29,7 +29,7 @@ export default function PrivacyPage() {
           <div>
             <h2 className="text-xs font-black uppercase tracking-widest text-brand-purple">What stays on this device</h2>
             <p className="mt-1">
-              Streak counts, fictional monster labels, bounded play stats, unlocks, a voice preference, and allowlisted aggregate event counters. These live in your browser&apos;s local storage. They are not synced to an Unhappy Buster account, because there is no account.
+              Streak counts, fictional monster labels, bounded play stats, unlocks, a voice preference, allowlisted aggregate event counters, and two random anonymous identifiers (an installation ID and a per-tab session ID). These live in your browser&apos;s local or session storage. They are not synced to an Unhappy Buster account, because there is no account.
             </p>
           </div>
           <div>
@@ -42,6 +42,15 @@ export default function PrivacyPage() {
             <h2 className="text-xs font-black uppercase tracking-widest text-brand-purple">What is sent to generate a boss</h2>
             <p className="mt-1">
               If an API key is configured on the server, a redacted, fictionalized description of the situation is sent to OpenAI to write monster copy and, optionally, a cartoon portrait. Names, emails, and phone-like strings are stripped first. Sensitive inputs are blocked and never sent. If no key is configured, a curated offline monster is used instead.
+            </p>
+          </div>
+          <div>
+            <h2 className="text-xs font-black uppercase tracking-widest text-brand-purple">Anonymous product analytics (production only)</h2>
+            <p className="mt-1">
+              Only when the deployed app has analytics enabled, Unhappy Buster sends a small set of anonymous product events to its own storage (our Upstash Redis instance — no third-party analytics provider, no advertising network). Each event carries the random installation and session IDs above, a timestamp, the event name, and at most a few bounded labels. The event names are: visit, start, boss revealed, arena started, arena completed (with outcome, duration bucket, and boss source), and share. The bounded labels are: boss source (daily / custom / challenge / scenario), live-AI vs curated-fallback generation, and UTM campaign labels when a link included them.
+            </p>
+            <p className="mt-1">
+              Analytics never receives your vent text, redacted vent text, boss-generation prompts, names, emails, phone numbers, boss descriptions derived from your vent, share-card text, or AI responses. There are no cookies, no fingerprinting, and no profiles. Counters are kept for about 95 days. The &quot;Clear data&quot; control in the Field Guide resets your local anonymous identifiers; previously sent counters simply remain as aggregate counts.
             </p>
           </div>
           <div>

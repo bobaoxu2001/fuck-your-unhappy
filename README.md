@@ -114,8 +114,10 @@ npm run start
 |----------|----------|-------|
 | `OPENAI_API_KEY` | Optional | Used server-side for monster copy and custom portraits; the curated experience still works without it |
 | `DISABLE_IMAGE_GENERATION` | Optional | Set to `true` to pause custom portraits without taking the app down |
-| `UPSTASH_REDIS_REST_URL` | Optional | Shared rate-limit store so serverless instances share one AI budget |
+| `UPSTASH_REDIS_REST_URL` | Optional | Shared rate-limit store so serverless instances share one AI budget; also stores anonymous product analytics counters (separate `fyua:` key prefix) |
 | `UPSTASH_REDIS_REST_TOKEN` | Optional | Companion token for the Upstash REST gate |
+| `NEXT_PUBLIC_ANALYTICS_ENABLED` | Optional | Set to `true` **only in Vercel Production** env vars to collect anonymous PMF events. Unset everywhere else so dev/preview/local builds never pollute production analytics |
+| `ANALYTICS_REPORT_KEY` | Optional | Secret query key for the founder-only report at `/api/analytics/report?key=…` |
 
 ## Deployment
 
@@ -130,6 +132,7 @@ This app is Vercel-ready.
 
 - The app is a brief comedy reset, not therapy, crisis support, or an encouragement of real-world harm.
 - The app does not persist raw vent text. Only streaks, fictional monster metadata, bounded play stats, unlock state, and allowlisted aggregate event counts are stored locally on the device.
+- When product analytics is enabled in production, the app additionally sends anonymous product events (visit / start / boss reveal / arena start / arena completion / share with bounded enum labels) plus two random local IDs to the project's own Upstash store. Vent text, redacted vent text, prompts, names, contacts, boss descriptions, share text, and AI responses are structurally excluded from the event schema and rejected by the server validator. No cookies, no fingerprinting, no accounts.
 - Names, emails, and phone-like strings are redacted before an AI request is built.
 - Self-harm, violent, hateful, or sexual inputs are stopped before text or image generation and receive a supportive redirect.
 - Generated portraits use structured fictional monster traits rather than the original vent text.
@@ -150,8 +153,46 @@ Next validation steps before scaling:
 - Run opt-in user tests before claiming retention lift
 - Add abuse/cost controls suitable for high-volume AI generation
 - Compare safe challenge-card formats and first-session activation copy
-- If cross-device cohort analytics are needed, add an explicitly consented, payload-free analytics backend
+- Cohort analytics now exist: a minimal anonymous, payload-free PMF measurement layer (see **PMF Measurement** below). Enable it in production with `NEXT_PUBLIC_ANALYTICS_ENABLED=true` plus the Upstash env vars and `ANALYTICS_REPORT_KEY`
 - Set `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` before a high-volume public launch so the AI gate is shared across instances
+
+## PMF Measurement (anonymous, production-gated)
+
+Before monetization, Unhappy Buster measures real commercial behavior with six anonymous core events, collected **only** when `NEXT_PUBLIC_ANALYTICS_ENABLED=true` is set in Vercel Production and Upstash storage is configured. Development, preview, and local builds never send anything. Analytics always fails open: if the endpoint or store is unavailable, gameplay is completely unaffected.
+
+| Event | Trigger | Properties |
+|-------|---------|------------|
+| `visit` | Page load, once per tab session | — |
+| `start` | Explicit loop start (vent submit, scenario chip, daily boss, challenge), once per session | `entry_type`: organic (typed vent) / custom (scenario chip) / daily / challenge |
+| `boss_revealed` | Boss reveal shown (AI result or public boss) | `boss_source`: custom / scenario / daily / challenge · `generation_mode`: live_ai / curated_fallback (custom & scenario only) |
+| `arena_started` | Arena actually begins | `boss_source`, `generation_mode?` |
+| `arena_completed` | Genuine terminal outcome (defeated / released / named) | `boss_source`, `generation_mode?`, `result`, `duration_bucket` (under_10 / 10_to_20 / 20_to_30 / over_30) |
+| `share` | User invokes a share action | `channel`: native / download |
+
+Every event also carries: a random anonymous installation ID (localStorage), a random per-tab session ID (sessionStorage), a server timestamp, and normalized UTM labels (`utm_source` / `utm_medium` / `utm_campaign`, lowercase `[a-z0-9._-]`, ≤48 chars) when present. The server rejects any event with unknown keys or non-enum values, so vent content is structurally impossible to store.
+
+**Measurable funnel:** visit → start → boss_revealed → arena_started → arena_completed → share. Custom-boss generation = `boss_revealed` with `boss_source` custom/scenario. Second fight = session with 2+ `arena_completed` the same UTC day. D1 = installs completing on day X that also completed on day X+1. D7 = installs completing on day X that also completed on days X+6…X+8. North star = installs completing on 2+ distinct days in the last 7 days.
+
+**Founder report (30-day PMF view, no dashboard):**
+
+```bash
+curl "https://fuck-your-unhappy.vercel.app/api/analytics/report?key=$ANALYTICS_REPORT_KEY&days=14"
+```
+
+Returns daily visitors/starts/reveals/arena-starts/completions/shares, funnel rates (activation, boss reveal, arena start, arena completion, share rate), second fights, D1/D7, the north-star count, completes & D1 per UTM source, completion per boss source (daily vs custom vs challenge vs scenario), live-AI vs curated-fallback completion, outcomes, and share channels.
+
+**Campaign link convention** (`boss_of_the_day_01`):
+
+| Channel | URL |
+|---------|-----|
+| TikTok | https://fuck-your-unhappy.vercel.app/?utm_source=tiktok&utm_medium=organic&utm_campaign=boss_of_the_day_01 |
+| Instagram Reels | https://fuck-your-unhappy.vercel.app/?utm_source=instagram&utm_medium=organic&utm_campaign=boss_of_the_day_01 |
+| Reddit | https://fuck-your-unhappy.vercel.app/?utm_source=reddit&utm_medium=community&utm_campaign=boss_of_the_day_01 |
+| Slack / direct shares | https://fuck-your-unhappy.vercel.app/?utm_source=slack&utm_medium=direct&utm_campaign=boss_of_the_day_01 |
+| Warm outreach | https://fuck-your-unhappy.vercel.app/?utm_source=outreach&utm_medium=warm&utm_campaign=boss_of_the_day_01 |
+| X | https://fuck-your-unhappy.vercel.app/?utm_source=x&utm_medium=organic&utm_campaign=boss_of_the_day_01 |
+
+Users can reset their anonymous analytics ID any time via Field Guide → Clear data (privacy page documents this). Remote counters self-expire after ~95 days.
 
 ## License
 
